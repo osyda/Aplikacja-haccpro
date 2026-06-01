@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Topbar } from '@/components/layout/topbar'
+import { BottomNav } from '@/components/layout/bottom-nav'
 import { ToastProvider } from '@/components/ui/toast-provider'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -27,11 +28,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <Sidebar />
       {/* Topbar — mobile full width, desktop offset */}
       <Topbar locationName={locationName} userEmail={user.email} />
-      <main className="lg:ml-64 pt-14 min-h-screen">
+      <main className="lg:ml-64 pt-14 pb-16 lg:pb-0 min-h-screen">
         <div className="p-4 md:p-6 max-w-5xl">
           {children}
         </div>
       </main>
+      <BottomNav />
     </div>
   )
 }
