@@ -263,14 +263,13 @@ export default function NowaDostawaPage() {
             ) : (
               <>
                 <Camera size={20} className="text-purple-400" />
-                <span className="text-sm font-medium text-gray-600">Zrób zdjęcie lub wybierz fakturę</span>
+                <span className="text-sm font-medium text-gray-600">Zdjęcie, skan lub PDF faktury</span>
               </>
             )}
             <input
               ref={scanRef}
               type="file"
-              accept="image/*"
-              capture="environment"
+              accept="image/*,.pdf"
               className="hidden"
               disabled={scanning}
               onChange={e => { const f = e.target.files?.[0]; if (f) handleScan(f) }}

@@ -40,9 +40,9 @@ export async function POST(req: NextRequest) {
     const file = formData.get('file') as File | null
     if (!file) return NextResponse.json({ error: 'Brak pliku' }, { status: 400 })
 
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'application/pdf']
     if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json({ error: 'Obsługiwane formaty: JPG, PNG, WebP. PDF nie jest obsługiwany w skanowaniu.' }, { status: 400 })
+      return NextResponse.json({ error: 'Obsługiwane formaty: JPG, PNG, WebP, PDF.' }, { status: 400 })
     }
 
     if (!process.env.ANTHROPIC_API_KEY) {
@@ -51,7 +51,10 @@ export async function POST(req: NextRequest) {
 
     const buffer = Buffer.from(await file.arrayBuffer())
     const base64 = buffer.toString('base64')
-    const mediaType = file.type as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
+
+    const fileBlock = file.type === 'application/pdf'
+      ? { type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: base64 } }
+      : { type: 'image' as const, source: { type: 'base64' as const, media_type: file.type as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp', data: base64 } }
 
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -62,7 +65,7 @@ export async function POST(req: NextRequest) {
         {
           role: 'user',
           content: [
-            { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+            fileBlock,
             { type: 'text', text: PROMPT },
           ],
         },
