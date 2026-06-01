@@ -24,6 +24,7 @@ export default function RaportyPage() {
   const [month, setMonth] = useState(today.getMonth())
   const [year, setYear] = useState(today.getFullYear())
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   function toggleModule(id: string) {
     setSelectedModules((prev) =>
@@ -33,21 +34,29 @@ export default function RaportyPage() {
 
   async function handleGenerate() {
     setLoading(true)
+    setError('')
     const params = new URLSearchParams({
       modules: selectedModules.join(','),
       month: String(month + 1),
       year: String(year),
     })
 
-    const res = await fetch(`/api/export/pdf?${params}`)
-    if (res.ok) {
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `HACCP_${MONTHS[month]}_${year}.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
+    try {
+      const res = await fetch(`/api/export/pdf?${params}`)
+      if (res.ok) {
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `HACCP_${MONTHS[month]}_${year}.pdf`
+        a.click()
+        URL.revokeObjectURL(url)
+      } else {
+        const text = await res.text()
+        setError(`Błąd serwera (${res.status}): ${text.slice(0, 300)}`)
+      }
+    } catch (e) {
+      setError('Błąd połączenia: ' + (e instanceof Error ? e.message : String(e)))
     }
     setLoading(false)
   }
@@ -111,6 +120,12 @@ export default function RaportyPage() {
           <Download size={16} />
           Generuj raport PDF — {MONTHS[month]} {year}
         </Button>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg p-3 font-mono break-all">
+            {error}
+          </div>
+        )}
 
         <p className="text-xs text-gray-400 text-center">
           Raport zostanie pobrany jako plik PDF gotowy do wydruku lub przesłania do Sanepidu.
