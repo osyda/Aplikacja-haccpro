@@ -1,12 +1,12 @@
 import { Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/renderer'
 import { formatDateTime } from '@/lib/utils'
-import path from 'path'
+import { NOTO_SANS_REGULAR, NOTO_SANS_BOLD } from './fonts'
 
 Font.register({
   family: 'NotoSans',
   fonts: [
-    { src: path.join(process.cwd(), 'public', 'fonts', 'NotoSans-Regular.woff2'), fontWeight: 400 },
-    { src: path.join(process.cwd(), 'public', 'fonts', 'NotoSans-Bold.woff2'), fontWeight: 700 },
+    { src: NOTO_SANS_REGULAR, fontWeight: 400 },
+    { src: NOTO_SANS_BOLD, fontWeight: 700 },
   ],
 })
 
