@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@fontsource/noto-sans": "^5.2.10",
     "@headlessui/react": "^2.2.10",
     "@hookform/resolvers": "^5.4.0",
     "@react-pdf/renderer": "^4.3.0",

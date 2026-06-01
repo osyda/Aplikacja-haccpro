@@ -1,18 +1,27 @@
-import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
+import { Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/renderer'
 import { formatDateTime } from '@/lib/utils'
+import path from 'path'
+
+Font.register({
+  family: 'NotoSans',
+  fonts: [
+    { src: path.join(process.cwd(), 'public', 'fonts', 'NotoSans-Regular.woff2'), fontWeight: 400 },
+    { src: path.join(process.cwd(), 'public', 'fonts', 'NotoSans-Bold.woff2'), fontWeight: 700 },
+  ],
+})
 
 const styles = StyleSheet.create({
-  page: { padding: 40, fontFamily: 'Helvetica', fontSize: 10, color: '#1a1a1a' },
+  page: { padding: 40, fontFamily: 'NotoSans', fontSize: 10, color: '#1a1a1a' },
   header: { marginBottom: 20, borderBottom: '2 solid #1B2E4B', paddingBottom: 10 },
-  title: { fontSize: 18, fontFamily: 'Helvetica-Bold', color: '#1B2E4B', marginBottom: 4 },
+  title: { fontSize: 18, fontWeight: 700, color: '#1B2E4B', marginBottom: 4 },
   subtitle: { fontSize: 10, color: '#666' },
   section: { marginBottom: 16 },
-  sectionTitle: { fontSize: 12, fontFamily: 'Helvetica-Bold', color: '#1B2E4B', marginBottom: 6, backgroundColor: '#f0f4f8', padding: '4 8' },
+  sectionTitle: { fontSize: 12, fontWeight: 700, color: '#1B2E4B', marginBottom: 6, backgroundColor: '#f0f4f8', padding: '4 8' },
   table: { width: '100%' },
   row: { flexDirection: 'row', borderBottom: '1 solid #e5e7eb', paddingVertical: 4 },
   headerRow: { flexDirection: 'row', backgroundColor: '#1B2E4B', paddingVertical: 5 },
   cell: { flex: 1, fontSize: 9, color: '#374151', paddingHorizontal: 4 },
-  headerCell: { flex: 1, fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#ffffff', paddingHorizontal: 4 },
+  headerCell: { flex: 1, fontSize: 9, fontWeight: 700, color: '#ffffff', paddingHorizontal: 4 },
   footer: { marginTop: 20, borderTop: '1 solid #e5e7eb', paddingTop: 10, fontSize: 8, color: '#9ca3af', textAlign: 'center' },
   alertRow: { flexDirection: 'row', backgroundColor: '#fef2f2', borderBottom: '1 solid #e5e7eb', paddingVertical: 4 },
 })
