@@ -4,17 +4,9 @@ import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Stethoscope, Plus, ChevronDown, ChevronUp, AlertTriangle, Paperclip, X } from 'lucide-react'
+import { Stethoscope, Plus, ChevronDown, ChevronUp, AlertTriangle, Paperclip, X, Search } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
-
-const CERT_TYPES = [
-  'Sanitarno-epidemiologiczne',
-  'Do celów San.-Epid.',
-  'Badanie lekarskie',
-  'Orzeczenie PSSE',
-]
 
 interface MedRecord {
   id: string
@@ -39,7 +31,7 @@ function StatusBadge({ validUntil }: { validUntil: string }) {
 export default function OrzeczenicaPage() {
   const [records, setRecords] = useState<MedRecord[]>([])
   const [expanded, setExpanded] = useState(false)
-  const [form, setForm] = useState({ person_name: '', certificate_type: 'Sanitarno-epidemiologiczne', valid_until: '', notes: '' })
+  const [form, setForm] = useState({ person_name: '', valid_until: '', notes: '' })
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -61,6 +53,7 @@ export default function OrzeczenicaPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!form.person_name) { toast.error('Podaj imię i nazwisko'); return }
     if (!form.valid_until) { toast.error('Podaj datę ważności'); return }
     setLoading(true)
     const { locationId, userId } = await getCtx()
@@ -78,7 +71,7 @@ export default function OrzeczenicaPage() {
     const { error } = await supabase.from('medical_records').insert({
       location_id: locationId,
       person_name: form.person_name,
-      certificate_type: form.certificate_type,
+      certificate_type: 'Do celów sanitarno-epidemiologicznych',
       valid_until: form.valid_until,
       notes: form.notes || null,
       doc_url: docUrl,
@@ -88,7 +81,7 @@ export default function OrzeczenicaPage() {
     setLoading(false)
     if (error) { toast.error('Błąd zapisu: ' + error.message); return }
     toast.success('Orzeczenie dodane!')
-    setForm({ person_name: '', certificate_type: 'Sanitarno-epidemiologiczne', valid_until: '', notes: '' })
+    setForm({ person_name: '', valid_until: '', notes: '' })
     setFile(null)
     if (fileRef.current) fileRef.current.value = ''
     setExpanded(false)
@@ -101,7 +94,7 @@ export default function OrzeczenicaPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Orzeczenia lekarskie</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Rejestr orzeczeń sanitarno-epidemiologicznych pracowników</p>
+        <p className="text-sm text-gray-500 mt-0.5">Rejestr orzeczeń do celów sanitarno-epidemiologicznych</p>
       </div>
 
       {urgent.length > 0 && (
@@ -132,19 +125,6 @@ export default function OrzeczenicaPage() {
           <form onSubmit={handleSubmit} className="mt-4 space-y-4">
             <Input label="Imię i nazwisko pracownika" placeholder="Jan Kowalski"
               value={form.person_name} onChange={(e) => setForm((p) => ({ ...p, person_name: e.target.value }))} required />
-
-            <div>
-              <p className="label">Typ orzeczenia</p>
-              <div className="flex flex-wrap gap-2">
-                {CERT_TYPES.map((t) => (
-                  <button key={t} type="button" onClick={() => setForm((p) => ({ ...p, certificate_type: t }))}
-                    className={cn('px-3 py-1.5 rounded-lg text-sm border transition-colors',
-                      form.certificate_type === t ? 'border-purple-500 bg-purple-50 text-purple-700 font-medium' : 'border-gray-200 hover:border-gray-300')}>
-                    {t}
-                  </button>
-                ))}
-              </div>
-            </div>
 
             <div>
               <label className="label">Ważne do</label>
@@ -182,19 +162,25 @@ export default function OrzeczenicaPage() {
           <h2 className="font-semibold text-gray-900 mb-3">Rejestr ({records.length})</h2>
           <div className="divide-y divide-gray-50">
             {records.map((r) => (
-              <div key={r.id} className="py-3">
-                <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                  <p className="font-medium text-sm text-gray-900">{r.person_name}</p>
-                  <StatusBadge validUntil={r.valid_until} />
+              <div key={r.id} className="py-3 flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                    <p className="font-medium text-sm text-gray-900">{r.person_name}</p>
+                    <StatusBadge validUntil={r.valid_until} />
+                  </div>
+                  <p className="text-xs text-gray-400">Ważne do: {formatDate(r.valid_until)}</p>
+                  {r.notes && <p className="text-xs text-gray-400 mt-0.5">{r.notes}</p>}
                 </div>
-                <p className="text-xs text-gray-500">{r.certificate_type}</p>
-                <p className="text-xs text-gray-400">Ważne do: {formatDate(r.valid_until)}</p>
-                {r.notes && <p className="text-xs text-gray-400 mt-0.5">{r.notes}</p>}
-                {r.doc_url && (
+                {r.doc_url ? (
                   <a href={r.doc_url} target="_blank" rel="noopener noreferrer"
-                    className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-0.5">
-                    <Paperclip size={10} /> Skan dokumentu
+                    title="Podgląd orzeczenia"
+                    className="shrink-0 p-2 rounded-lg border border-gray-200 hover:border-purple-400 hover:bg-purple-50 transition-colors text-gray-400 hover:text-purple-600">
+                    <Search size={16} />
                   </a>
+                ) : (
+                  <div className="shrink-0 p-2 rounded-lg border border-dashed border-gray-200 text-gray-300" title="Brak skanu">
+                    <Search size={16} />
+                  </div>
                 )}
               </div>
             ))}
