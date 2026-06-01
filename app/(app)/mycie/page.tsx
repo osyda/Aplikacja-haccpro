@@ -1,65 +1,124 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Droplets, Plus, ChevronDown, ChevronUp } from 'lucide-react'
+import { Droplets, Plus, ChevronDown, ChevronUp, Paperclip, X } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
+import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 
-const AREAS = ['Kuchnia', 'Sala', 'Toalety', 'Magazyn', 'Witryna', 'Sprzęt kuchenny', 'Lodówki', 'Podłogi']
-const AGENTS = ['Fairy', 'Domestos', 'Clinex', 'Suma Bac D10', 'Incidin Plus', 'Inny']
+const DEFAULT_AREAS = ['Kuchnia', 'Sala', 'Toalety', 'Magazyn', 'Witryna', 'Sprzęt kuchenny', 'Lodówki', 'Podłogi']
+const DEFAULT_AGENTS = ['Fairy', 'Domestos', 'Clinex', 'Suma Bac D10', 'Incidin Plus']
 
 interface Log {
   id: string
   area: string
   agent: string
-  concentration: string | null
   cleaned_at: string
   notes: string | null
+  doc_url: string | null
 }
 
 export default function MyCiePage() {
   const [logs, setLogs] = useState<Log[]>([])
   const [expanded, setExpanded] = useState(false)
-  const [form, setForm] = useState({ area: '', agent: '', concentration: '', notes: '' })
+  const [area, setArea] = useState('')
+  const [agent, setAgent] = useState('')
+  const [notes, setNotes] = useState('')
+  const [customAreas, setCustomAreas] = useState<string[]>([])
+  const [customAgents, setCustomAgents] = useState<string[]>([])
+  const [newArea, setNewArea] = useState('')
+  const [newAgent, setNewAgent] = useState('')
+  const [showAddArea, setShowAddArea] = useState(false)
+  const [showAddAgent, setShowAddAgent] = useState(false)
+  const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
-  const [success, setSuccess] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
 
-  async function fetchLogs() {
+  async function getCtx() {
     const { data: { user } } = await supabase.auth.getUser()
     const { data: profile } = await supabase.from('profiles').select('location_id').eq('id', user!.id).single()
-    const { data } = await supabase.from('cleaning_logs').select('*').eq('location_id', profile?.location_id ?? '').order('cleaned_at', { ascending: false }).limit(50)
-    setLogs(data ?? [])
+    return { locationId: profile?.location_id ?? '', userId: user!.id }
   }
 
-  useEffect(() => { fetchLogs() }, [])
+  async function fetchData() {
+    const { locationId } = await getCtx()
+    const [logsRes, locRes] = await Promise.all([
+      supabase.from('cleaning_logs').select('id,area,agent,cleaned_at,notes,doc_url').eq('location_id', locationId).order('cleaned_at', { ascending: false }).limit(50),
+      supabase.from('locations').select('cleaning_areas,cleaning_agents').eq('id', locationId).single(),
+    ])
+    setLogs(logsRes.data ?? [])
+    setCustomAreas(locRes.data?.cleaning_areas ?? [])
+    setCustomAgents(locRes.data?.cleaning_agents ?? [])
+  }
+
+  useEffect(() => { fetchData() }, [])
+
+  async function saveCustomArea() {
+    if (!newArea.trim()) return
+    const { locationId } = await getCtx()
+    const updated = [...customAreas, newArea.trim()]
+    await supabase.from('locations').update({ cleaning_areas: updated }).eq('id', locationId)
+    setCustomAreas(updated)
+    setNewArea('')
+    setShowAddArea(false)
+  }
+
+  async function saveCustomAgent() {
+    if (!newAgent.trim()) return
+    const { locationId } = await getCtx()
+    const updated = [...customAgents, newAgent.trim()]
+    await supabase.from('locations').update({ cleaning_agents: updated }).eq('id', locationId)
+    setCustomAgents(updated)
+    setNewAgent('')
+    setShowAddAgent(false)
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!area) { toast.error('Wybierz lub wpisz obszar'); return }
+    if (!agent) { toast.error('Wybierz lub wpisz środek czyszczący'); return }
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data: profile } = await supabase.from('profiles').select('location_id').eq('id', user!.id).single()
+
+    const { locationId, userId } = await getCtx()
+
+    let docUrl: string | null = null
+    if (file) {
+      const ext = file.name.split('.').pop()
+      const path = `cleaning/${locationId}/${Date.now()}.${ext}`
+      const { data: upload, error: uploadError } = await supabase.storage
+        .from('documents').upload(path, file, { upsert: false })
+      if (uploadError) { toast.error('Błąd uploadu: ' + uploadError.message); setLoading(false); return }
+      docUrl = supabase.storage.from('documents').getPublicUrl(upload.path).data.publicUrl
+    }
 
     const { error } = await supabase.from('cleaning_logs').insert({
-      location_id: profile?.location_id ?? '',
-      area: form.area,
-      agent: form.agent,
-      concentration: form.concentration || null,
+      location_id: locationId,
+      area,
+      agent,
+      concentration: null,
       cleaned_at: new Date().toISOString(),
-      recorded_by: user!.id,
-      notes: form.notes || null,
+      recorded_by: userId,
+      notes: notes || null,
+      doc_url: docUrl,
     })
 
     setLoading(false)
-    if (!error) {
-      setSuccess(true)
-      setForm({ area: '', agent: '', concentration: '', notes: '' })
-      fetchLogs()
-      setTimeout(() => { setSuccess(false); setExpanded(false) }, 2000)
-    }
+    if (error) { toast.error('Błąd zapisu: ' + error.message); return }
+    toast.success('Wpis mycia zapisany!')
+    setArea('')
+    setAgent('')
+    setNotes('')
+    setFile(null)
+    if (fileRef.current) fileRef.current.value = ''
+    setExpanded(false)
+    fetchData()
   }
+
+  const allAreas = [...DEFAULT_AREAS, ...customAreas]
+  const allAgents = [...DEFAULT_AGENTS, ...customAgents]
 
   return (
     <div className="space-y-6">
@@ -80,39 +139,87 @@ export default function MyCiePage() {
         {expanded && (
           <form onSubmit={handleSubmit} className="mt-4 space-y-4">
             <div>
-              <p className="label">Obszar / miejsce</p>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="label mb-0">Obszar / miejsce</p>
+                <button type="button" onClick={() => setShowAddArea(!showAddArea)} className="text-xs text-cyan-600 hover:underline">
+                  + Dodaj nowy obszar
+                </button>
+              </div>
+              {showAddArea && (
+                <div className="flex gap-2 mb-2">
+                  <input className="input flex-1 text-sm" placeholder="Nazwa obszaru" value={newArea}
+                    onChange={(e) => setNewArea(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), saveCustomArea())} />
+                  <Button type="button" size="sm" onClick={saveCustomArea}>Dodaj</Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setShowAddArea(false)}>Anuluj</Button>
+                </div>
+              )}
               <div className="flex flex-wrap gap-2">
-                {AREAS.map((a) => (
-                  <button key={a} type="button" onClick={() => setForm((p) => ({ ...p, area: a }))}
-                    className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${form.area === a ? 'border-cyan-500 bg-cyan-50 text-cyan-700 font-medium' : 'border-gray-200 hover:border-gray-300'}`}>
+                {allAreas.map((a) => (
+                  <button key={a} type="button" onClick={() => setArea(a)}
+                    className={cn('px-3 py-1.5 rounded-lg text-sm border transition-colors',
+                      area === a ? 'border-cyan-500 bg-cyan-50 text-cyan-700 font-medium' : 'border-gray-200 hover:border-gray-300')}>
                     {a}
                   </button>
                 ))}
               </div>
+              <input className="input mt-2 text-sm" placeholder="Lub wpisz ręcznie..." value={area}
+                onChange={(e) => setArea(e.target.value)} />
             </div>
 
             <div>
-              <p className="label">Środek czyszczący</p>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="label mb-0">Środek czyszczący</p>
+                <button type="button" onClick={() => setShowAddAgent(!showAddAgent)} className="text-xs text-cyan-600 hover:underline">
+                  + Dodaj nowy środek
+                </button>
+              </div>
+              {showAddAgent && (
+                <div className="flex gap-2 mb-2">
+                  <input className="input flex-1 text-sm" placeholder="Nazwa środka" value={newAgent}
+                    onChange={(e) => setNewAgent(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), saveCustomAgent())} />
+                  <Button type="button" size="sm" onClick={saveCustomAgent}>Dodaj</Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setShowAddAgent(false)}>Anuluj</Button>
+                </div>
+              )}
               <div className="flex flex-wrap gap-2">
-                {AGENTS.map((a) => (
-                  <button key={a} type="button" onClick={() => setForm((p) => ({ ...p, agent: a }))}
-                    className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${form.agent === a ? 'border-cyan-500 bg-cyan-50 text-cyan-700 font-medium' : 'border-gray-200 hover:border-gray-300'}`}>
+                {allAgents.map((a) => (
+                  <button key={a} type="button" onClick={() => setAgent(a)}
+                    className={cn('px-3 py-1.5 rounded-lg text-sm border transition-colors',
+                      agent === a ? 'border-cyan-500 bg-cyan-50 text-cyan-700 font-medium' : 'border-gray-200 hover:border-gray-300')}>
                     {a}
                   </button>
                 ))}
               </div>
+              <input className="input mt-2 text-sm" placeholder="Lub wpisz ręcznie..." value={agent}
+                onChange={(e) => setAgent(e.target.value)} />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <Input label="Obszar (ręcznie)" placeholder="np. Lodówka przy bufecie" value={form.area} onChange={(e) => setForm((p) => ({ ...p, area: e.target.value }))} required />
-              <Input label="Środek (ręcznie)" placeholder="np. Domestos 5%" value={form.agent} onChange={(e) => setForm((p) => ({ ...p, agent: e.target.value }))} required />
-              <Input label="Stężenie" placeholder="np. 2%, 5 ml/l" value={form.concentration} onChange={(e) => setForm((p) => ({ ...p, concentration: e.target.value }))} />
-              <Input label="Uwagi" placeholder="Dodatkowe informacje" value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} />
+            <div>
+              <label className="label">Uwagi (opcjonalnie)</label>
+              <input className="input" placeholder="Dodatkowe informacje" value={notes}
+                onChange={(e) => setNotes(e.target.value)} />
             </div>
 
-            <Button type="submit" loading={loading} className={success ? 'bg-green-600' : ''}>
-              {success ? 'Zapisano!' : 'Zapisz wpis'}
-            </Button>
+            <div>
+              <label className="label">Karta produktu / zdjęcie (opcjonalnie)</label>
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 cursor-pointer hover:border-gray-300 transition-colors">
+                  <Paperclip size={14} />
+                  {file ? file.name : 'Wybierz plik (JPG, PNG, PDF)'}
+                  <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden"
+                    onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+                </label>
+                {file && (
+                  <button type="button" onClick={() => { setFile(null); if (fileRef.current) fileRef.current.value = '' }}>
+                    <X size={16} className="text-gray-400 hover:text-gray-600" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <Button type="submit" loading={loading}>Zapisz wpis</Button>
           </form>
         )}
       </div>
@@ -125,8 +232,14 @@ export default function MyCiePage() {
               <div key={log.id} className="py-3 flex items-center justify-between">
                 <div>
                   <p className="font-medium text-sm text-gray-900">{log.area}</p>
-                  <p className="text-xs text-gray-500">{log.agent}{log.concentration ? ` • ${log.concentration}` : ''}</p>
+                  <p className="text-xs text-gray-500">{log.agent}</p>
                   {log.notes && <p className="text-xs text-gray-400 mt-0.5">{log.notes}</p>}
+                  {log.doc_url && (
+                    <a href={log.doc_url} target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-0.5">
+                      <Paperclip size={10} /> Załącznik
+                    </a>
+                  )}
                 </div>
                 <p className="text-xs text-gray-400 whitespace-nowrap ml-4">{formatDateTime(log.cleaned_at)}</p>
               </div>

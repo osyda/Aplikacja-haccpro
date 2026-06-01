@@ -15,6 +15,7 @@ import {
   Settings,
   LayoutDashboard,
   Apple,
+  Stethoscope,
 } from 'lucide-react'
 
 const navItems = [
@@ -23,6 +24,7 @@ const navItems = [
   { href: '/dostawy', label: 'Dostawy', icon: Truck },
   { href: '/mycie', label: 'Mycie i dezynfekcja', icon: Droplets },
   { href: '/szkolenia', label: 'Szkolenia', icon: GraduationCap },
+  { href: '/orzeczenia', label: 'Orzeczenia', icon: Stethoscope },
   { href: '/niezgodnosci', label: 'Niezgodności', icon: AlertTriangle },
   { href: '/ddd', label: 'Kontrola DDD', icon: Bug },
   { href: '/alergeny', label: 'Alergeny', icon: Apple },
