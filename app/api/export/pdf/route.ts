@@ -58,43 +58,49 @@ async function fetchModuleData(
 }
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const moduleIds = (searchParams.get('modules') ?? 'temperatury,dostawy,mycie').split(',')
-  const month = parseInt(searchParams.get('month') ?? String(new Date().getMonth() + 1))
-  const year = parseInt(searchParams.get('year') ?? String(new Date().getFullYear()))
+  try {
+    const { searchParams } = new URL(request.url)
+    const moduleIds = (searchParams.get('modules') ?? 'temperatury,dostawy,mycie').split(',')
+    const month = parseInt(searchParams.get('month') ?? String(new Date().getMonth() + 1))
+    const year = parseInt(searchParams.get('year') ?? String(new Date().getFullYear()))
 
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('location_id, locations(name, address, city)')
-    .eq('id', user.id)
-    .single()
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('location_id, locations(name, address, city)')
+      .eq('id', user.id)
+      .single()
 
-  const locationId = profile?.location_id ?? ''
-  const locRaw = profile?.locations
-  const location: { name: string; address: string; city: string } | null =
-    locRaw && !Array.isArray(locRaw) ? (locRaw as { name: string; address: string; city: string }) : null
+    const locationId = profile?.location_id ?? ''
+    const locRaw = profile?.locations
+    const location: { name: string; address: string; city: string } | null =
+      locRaw && !Array.isArray(locRaw) ? (locRaw as { name: string; address: string; city: string }) : null
 
-  const data = await fetchModuleData(supabase, locationId, moduleIds, year, month)
+    const data = await fetchModuleData(supabase, locationId, moduleIds, year, month)
 
-  const element = createElement(HacppPdfDocument, {
-    monthName: MONTH_NAMES[month],
-    year,
-    locationName: location?.name ?? 'Brak danych',
-    locationAddress: location ? `${location.address}, ${location.city}` : '',
-    moduleIds,
-    data,
-  })
+    const element = createElement(HacppPdfDocument, {
+      monthName: MONTH_NAMES[month],
+      year,
+      locationName: location?.name ?? 'Brak danych',
+      locationAddress: location ? `${location.address}, ${location.city}` : '',
+      moduleIds,
+      data,
+    })
 
-  const buffer = Buffer.from(await renderToBuffer(element as any))
+    const buffer = Buffer.from(await renderToBuffer(element as any))
 
-  return new NextResponse(buffer, {
-    headers: {
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="HACCP_${MONTH_NAMES[month]}_${year}.pdf"`,
-    },
-  })
+    return new NextResponse(buffer, {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="HACCP_${MONTH_NAMES[month]}_${year}.pdf"`,
+      },
+    })
+  } catch (err) {
+    const msg = err instanceof Error ? `${err.message}\n${err.stack}` : String(err)
+    console.error('[PDF] generation error:', msg)
+    return new NextResponse(msg, { status: 500 })
+  }
 }
