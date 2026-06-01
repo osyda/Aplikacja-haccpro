@@ -45,7 +45,6 @@ export function AddTemperatureForm({ locationId }: AddTemperatureFormProps) {
     setValue,
     watch,
     formState: { errors, isSubmitting },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } = useForm<FormData>({ resolver: zodResolver(schema) as any })
 
   const watchedDevice = watch('device_name')

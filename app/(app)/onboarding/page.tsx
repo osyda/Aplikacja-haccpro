@@ -33,7 +33,6 @@ export default function OnboardingPage() {
   const router = useRouter()
   const supabase = createClient()
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema) as any,
   })

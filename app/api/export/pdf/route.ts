@@ -89,7 +89,6 @@ export async function GET(request: NextRequest) {
     data,
   })
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const buffer = Buffer.from(await renderToBuffer(element as any))
 
   return new NextResponse(buffer, {
