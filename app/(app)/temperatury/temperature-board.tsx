@@ -54,7 +54,9 @@ function DeviceCard({ device, locationId, onSaved }: DeviceCardProps) {
 
   const tempNum = temp === '' ? null : parseFloat(temp.replace(',', '.'))
   const hasTemp = tempNum !== null && !isNaN(tempNum)
-  const inRange = hasTemp && tempNum >= device.min_ok && tempNum <= device.max_ok
+  const normMin = Math.min(device.min_ok, device.max_ok)
+  const normMax = Math.max(device.min_ok, device.max_ok)
+  const inRange = hasTemp && tempNum >= normMin && tempNum <= normMax
   const outOfRange = hasTemp && !inRange
   const isUnusual = hasTemp && (tempNum < -40 || tempNum > 100)
   const notesRequired = outOfRange
