@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { ChevronLeft, MapPin, Plus } from 'lucide-react'
+import { toast } from 'sonner'
 import type { Location } from '@/types/database'
 
 const LOCATION_TYPES = ['Restauracja', 'Bar', 'Kawiarnia', 'Pizzeria', 'Fast-food', 'Stołówka', 'Catering', 'Sklep spożywczy', 'Inny']
@@ -29,29 +30,39 @@ export default function LocalePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!form.type) { toast.error('Wybierz typ lokalu'); return }
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user!.id).single()
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) { toast.error('Błąd autoryzacji'); setLoading(false); return }
+
+    const { data: profile, error: profileError } = await supabase.from('profiles').select('org_id').eq('id', user.id).single()
+    if (profileError || !profile?.org_id) { toast.error('Błąd profilu: ' + (profileError?.message ?? 'brak org_id')); setLoading(false); return }
 
     const { data: loc, error } = await supabase.from('locations').insert({
-      org_id: profile?.org_id ?? '',
+      org_id: profile.org_id,
       name: form.name,
       address: form.address,
       city: form.city,
       type: form.type,
     }).select().single()
 
-    if (!error && loc) {
-      await supabase.from('profiles').update({ location_id: loc.id }).eq('id', user!.id)
+    if (error) {
+      toast.error('Błąd zapisu lokalu: ' + error.message)
+      setLoading(false)
+      return
+    }
+
+    if (loc) {
+      await supabase.from('profiles').update({ location_id: loc.id }).eq('id', user.id)
     }
 
     setLoading(false)
-    if (!error) {
-      setSuccess(true)
-      setForm({ name: '', address: '', city: '', type: '' })
-      fetchLocations()
-      setTimeout(() => { setSuccess(false); setShowForm(false) }, 2000)
-    }
+    setSuccess(true)
+    toast.success('Lokal zapisany!')
+    setForm({ name: '', address: '', city: '', type: '' })
+    fetchLocations()
+    setTimeout(() => { setSuccess(false); setShowForm(false) }, 2000)
   }
 
   return (
