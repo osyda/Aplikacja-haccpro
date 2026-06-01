@@ -2,10 +2,24 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
-import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Plus, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, ChevronDown, ChevronUp, Thermometer } from 'lucide-react'
+import { cn } from '@/lib/utils'
+
+const schema = z.object({
+  device_name: z.string().min(1, 'Podaj nazwę urządzenia'),
+  temperature: z.coerce.number().refine((v) => !isNaN(v), 'Podaj temperaturę'),
+  min_ok: z.coerce.number().refine((v) => !isNaN(v), 'Podaj minimalną normę'),
+  max_ok: z.coerce.number().refine((v) => !isNaN(v), 'Podaj maksymalną normę'),
+  notes: z.string().optional(),
+})
+
+type FormData = z.output<typeof schema>
 
 interface AddTemperatureFormProps {
   locationId: string
@@ -21,40 +35,56 @@ const COMMON_DEVICES = [
 
 export function AddTemperatureForm({ locationId }: AddTemperatureFormProps) {
   const [expanded, setExpanded] = useState(false)
-  const [form, setForm] = useState({ device_name: '', temperature: '', min_ok: '', max_ok: '', notes: '' })
-  const [loading, setLoading] = useState(false)
-  const [success, setSuccess] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { errors, isSubmitting },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } = useForm<FormData>({ resolver: zodResolver(schema) as any })
+
+  const watchedDevice = watch('device_name')
+
   function selectDevice(device: typeof COMMON_DEVICES[0]) {
-    setForm((prev) => ({ ...prev, device_name: device.name, min_ok: String(device.min), max_ok: String(device.max) }))
+    setValue('device_name', device.name)
+    setValue('min_ok', device.min)
+    setValue('max_ok', device.max)
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-
+  async function onSubmit(data: FormData) {
     const { data: { user } } = await supabase.auth.getUser()
 
     const { error } = await supabase.from('temperature_logs').insert({
       location_id: locationId,
-      device_name: form.device_name,
-      temperature: parseFloat(form.temperature),
-      min_ok: parseFloat(form.min_ok),
-      max_ok: parseFloat(form.max_ok),
+      device_name: data.device_name,
+      temperature: data.temperature,
+      min_ok: data.min_ok,
+      max_ok: data.max_ok,
       measured_at: new Date().toISOString(),
       recorded_by: user!.id,
-      notes: form.notes || null,
+      notes: data.notes || null,
     })
 
-    setLoading(false)
-    if (!error) {
-      setSuccess(true)
-      setForm({ device_name: '', temperature: '', min_ok: '', max_ok: '', notes: '' })
-      setTimeout(() => { setSuccess(false); setExpanded(false) }, 2000)
-      router.refresh()
+    if (error) {
+      toast.error('Błąd zapisu temperatury: ' + error.message)
+      return
     }
+
+    const ok = data.temperature >= data.min_ok && data.temperature <= data.max_ok
+    if (ok) {
+      toast.success(`Zapisano: ${data.device_name} ${data.temperature}°C — norma OK`)
+    } else {
+      toast.error(`ALARM: ${data.device_name} ${data.temperature}°C poza normą (${data.min_ok}–${data.max_ok}°C)`)
+    }
+
+    reset()
+    setExpanded(false)
+    router.refresh()
   }
 
   return (
@@ -74,16 +104,21 @@ export function AddTemperatureForm({ locationId }: AddTemperatureFormProps) {
       </button>
 
       {expanded && (
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="mt-4 space-y-4">
           <div>
-            <p className="label">Wybierz urządzenie</p>
+            <p className="label">Szybki wybór urządzenia</p>
             <div className="flex flex-wrap gap-2">
               {COMMON_DEVICES.map((d) => (
                 <button
                   key={d.name}
                   type="button"
                   onClick={() => selectDevice(d)}
-                  className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${form.device_name === d.name ? 'border-brand-green bg-green-50 text-brand-green font-medium' : 'border-gray-200 hover:border-gray-300'}`}
+                  className={cn(
+                    'px-3 py-1.5 rounded-lg text-sm border transition-colors',
+                    watchedDevice === d.name
+                      ? 'border-brand-green bg-green-50 text-brand-green font-medium'
+                      : 'border-gray-200 hover:border-gray-300'
+                  )}
                 >
                   {d.name}
                 </button>
@@ -92,52 +127,54 @@ export function AddTemperatureForm({ locationId }: AddTemperatureFormProps) {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Nazwa urządzenia"
-              placeholder="np. Lodówka 1"
-              value={form.device_name}
-              onChange={(e) => setForm((p) => ({ ...p, device_name: e.target.value }))}
-              required
-            />
-            <Input
-              label="Temperatura (°C)"
-              type="number"
-              step="0.1"
-              placeholder="np. 3.5"
-              value={form.temperature}
-              onChange={(e) => setForm((p) => ({ ...p, temperature: e.target.value }))}
-              required
-            />
-            <Input
-              label="Min. norma (°C)"
-              type="number"
-              step="0.5"
-              placeholder="np. 0"
-              value={form.min_ok}
-              onChange={(e) => setForm((p) => ({ ...p, min_ok: e.target.value }))}
-              required
-            />
-            <Input
-              label="Max. norma (°C)"
-              type="number"
-              step="0.5"
-              placeholder="np. 4"
-              value={form.max_ok}
-              onChange={(e) => setForm((p) => ({ ...p, max_ok: e.target.value }))}
-              required
-            />
+            <div className="col-span-2">
+              <label className="label">Nazwa urządzenia</label>
+              <input
+                {...register('device_name')}
+                placeholder="np. Lodówka przy barze"
+                className="input"
+              />
+              {errors.device_name && <p className="text-xs text-red-600 mt-0.5">{errors.device_name.message}</p>}
+            </div>
+
+            <div>
+              <label className="label">Temperatura (°C)</label>
+              <input
+                {...register('temperature')}
+                type="number"
+                step="0.1"
+                placeholder="np. 3.5"
+                className="input font-mono text-lg"
+              />
+              {errors.temperature && <p className="text-xs text-red-600 mt-0.5">{errors.temperature.message}</p>}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="label">Min. norma</label>
+                <input {...register('min_ok')} type="number" step="0.5" placeholder="0" className="input" />
+              </div>
+              <div>
+                <label className="label">Max. norma</label>
+                <input {...register('max_ok')} type="number" step="0.5" placeholder="4" className="input" />
+              </div>
+            </div>
           </div>
 
-          <Input
-            label="Uwagi (opcjonalnie)"
-            placeholder="Dodatkowe informacje..."
-            value={form.notes}
-            onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
-          />
+          <div>
+            <label className="label">Uwagi (opcjonalnie)</label>
+            <input {...register('notes')} placeholder="Dodatkowe informacje..." className="input" />
+          </div>
 
-          <Button type="submit" loading={loading} className={success ? 'bg-green-600' : ''}>
-            {success ? 'Zapisano!' : 'Zapisz wpis'}
-          </Button>
+          <div className="flex gap-2">
+            <Button type="submit" loading={isSubmitting} className="flex-1">
+              <Thermometer size={14} />
+              Zapisz odczyt
+            </Button>
+            <Button type="button" variant="ghost" onClick={() => setExpanded(false)}>
+              Anuluj
+            </Button>
+          </div>
         </form>
       )}
     </div>

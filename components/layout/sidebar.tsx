@@ -18,7 +18,7 @@ import {
 } from 'lucide-react'
 
 const navItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/temperatury', label: 'Temperatury', icon: Thermometer },
   { href: '/dostawy', label: 'Dostawy', icon: Truck },
   { href: '/mycie', label: 'Mycie i dezynfekcja', icon: Droplets },
@@ -35,7 +35,7 @@ export function Sidebar() {
   const pathname = usePathname()
 
   return (
-    <aside className="w-64 bg-brand-navy text-white flex flex-col h-full fixed left-0 top-0 z-30">
+    <aside className="hidden lg:flex w-64 bg-brand-navy text-white flex-col h-full fixed left-0 top-0 z-30">
       <div className="p-5 border-b border-white/10">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-brand-green rounded-lg flex items-center justify-center text-white font-bold text-sm">

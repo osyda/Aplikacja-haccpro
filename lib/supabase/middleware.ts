@@ -35,7 +35,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (user && isAuthRoute) {
-    url.pathname = '/'
+    url.pathname = '/dashboard'
     return NextResponse.redirect(url)
   }
 
