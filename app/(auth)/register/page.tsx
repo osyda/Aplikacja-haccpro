@@ -12,7 +12,6 @@ export default function RegisterPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
@@ -23,6 +22,7 @@ export default function RegisterPage() {
     setError('')
     setLoading(true)
 
+    const supabase = createClient()
     const { error } = await supabase.auth.signUp({
       email: form.email,
       password: form.password,
