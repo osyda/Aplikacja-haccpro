@@ -6,33 +6,48 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ChevronLeft, Paperclip, X, Thermometer } from 'lucide-react'
+import { ChevronLeft, Paperclip, X, Thermometer, Building2, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
 const DELIVERY_CATEGORIES = [
-  { id: 'mieso',    label: 'Mięso świeże/chłodzone',  requiresTemp: true,  tempHint: '0 – 7°C',   activeClass: 'border-red-400 bg-red-50 text-red-700' },
-  { id: 'drob',     label: 'Drób i królik',            requiresTemp: true,  tempHint: '0 – 4°C',   activeClass: 'border-orange-400 bg-orange-50 text-orange-700' },
-  { id: 'ryby',     label: 'Ryby i owoce morza',       requiresTemp: true,  tempHint: '0 – 4°C',   activeClass: 'border-blue-400 bg-blue-50 text-blue-700' },
-  { id: 'wedliny',  label: 'Wędliny i przetwory',      requiresTemp: true,  tempHint: '0 – 7°C',   activeClass: 'border-rose-400 bg-rose-50 text-rose-700' },
-  { id: 'nabiał',   label: 'Nabiał (mleko, sery)',     requiresTemp: true,  tempHint: '0 – 8°C',   activeClass: 'border-yellow-400 bg-yellow-50 text-yellow-700' },
-  { id: 'mrozonki', label: 'Mrożonki',                 requiresTemp: true,  tempHint: '≤ −18°C',   activeClass: 'border-cyan-400 bg-cyan-50 text-cyan-700' },
-  { id: 'gotowe',   label: 'Dania gotowe / GMP',       requiresTemp: true,  tempHint: '0 – 4°C',   activeClass: 'border-purple-400 bg-purple-50 text-purple-700' },
-  { id: 'warzywa',  label: 'Warzywa i owoce',          requiresTemp: false, tempHint: '',           activeClass: 'border-green-400 bg-green-50 text-green-700' },
-  { id: 'suche',    label: 'Produkty suche',           requiresTemp: false, tempHint: '',           activeClass: 'border-amber-400 bg-amber-50 text-amber-700' },
-  { id: 'pieczywo', label: 'Pieczywo i wyroby cukier.',requiresTemp: false, tempHint: '',           activeClass: 'border-amber-400 bg-amber-50 text-amber-700' },
-  { id: 'napoje',   label: 'Napoje',                   requiresTemp: false, tempHint: '',           activeClass: 'border-sky-400 bg-sky-50 text-sky-700' },
-  { id: 'inne',     label: 'Inne',                     requiresTemp: false, tempHint: '',           activeClass: 'border-gray-400 bg-gray-50 text-gray-600' },
+  { id: 'mieso',    label: 'Mięso świeże',          requiresTemp: true,  tempHint: '0 – 7°C',  activeClass: 'border-red-400 bg-red-50 text-red-700' },
+  { id: 'drob',     label: 'Drób i królik',          requiresTemp: true,  tempHint: '0 – 4°C',  activeClass: 'border-orange-400 bg-orange-50 text-orange-700' },
+  { id: 'ryby',     label: 'Ryby i owoce morza',     requiresTemp: true,  tempHint: '0 – 4°C',  activeClass: 'border-blue-400 bg-blue-50 text-blue-700' },
+  { id: 'wedliny',  label: 'Wędliny i przetwory',    requiresTemp: true,  tempHint: '0 – 7°C',  activeClass: 'border-rose-400 bg-rose-50 text-rose-700' },
+  { id: 'nabiał',   label: 'Nabiał',                 requiresTemp: true,  tempHint: '0 – 8°C',  activeClass: 'border-yellow-400 bg-yellow-50 text-yellow-700' },
+  { id: 'mrozonki', label: 'Mrożonki',               requiresTemp: true,  tempHint: '≤ −18°C',  activeClass: 'border-cyan-400 bg-cyan-50 text-cyan-700' },
+  { id: 'gotowe',   label: 'Dania gotowe / GMP',     requiresTemp: true,  tempHint: '0 – 4°C',  activeClass: 'border-purple-400 bg-purple-50 text-purple-700' },
+  { id: 'warzywa',  label: 'Warzywa i owoce',        requiresTemp: false, tempHint: '',          activeClass: 'border-green-400 bg-green-50 text-green-700' },
+  { id: 'suche',    label: 'Produkty suche',         requiresTemp: false, tempHint: '',          activeClass: 'border-amber-400 bg-amber-50 text-amber-700' },
+  { id: 'pieczywo', label: 'Pieczywo',               requiresTemp: false, tempHint: '',          activeClass: 'border-amber-400 bg-amber-50 text-amber-700' },
+  { id: 'napoje',   label: 'Napoje',                 requiresTemp: false, tempHint: '',          activeClass: 'border-sky-400 bg-sky-50 text-sky-700' },
+  { id: 'inne',     label: 'Inne',                   requiresTemp: false, tempHint: '',          activeClass: 'border-gray-400 bg-gray-50 text-gray-600' },
 ]
 
+interface Supplier {
+  id: string
+  alias: string
+  full_name: string
+  nip: string
+  notes: string | null
+}
+
+const EMPTY_NEW_SUPP = { alias: '', full_name: '', nip: '', notes: '' }
+
 export default function NowaDostawaPage() {
-  const [suppliers, setSuppliers] = useState<string[]>([])
-  const [newSupplier, setNewSupplier] = useState('')
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [newSupp, setNewSupp] = useState(EMPTY_NEW_SUPP)
   const [showAddSupplier, setShowAddSupplier] = useState(false)
   const [form, setForm] = useState({
-    supplier: '', category: '', product: '',
-    quantity: '', temp_at_delivery: '', expiry_date: '',
-    quality_ok: true, notes: '',
+    supplier: '',
+    categories: [] as string[],
+    product: '',
+    quantity: '',
+    temp_at_delivery: '',
+    expiry_date: '',
+    quality_ok: true,
+    notes: '',
   })
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
@@ -40,15 +55,19 @@ export default function NowaDostawaPage() {
   const router = useRouter()
   const supabase = createClient()
 
-  const selectedCat = DELIVERY_CATEGORIES.find(c => c.id === form.category)
-  const requiresTemp = selectedCat?.requiresTemp ?? false
+  const tempRequiredCats = DELIVERY_CATEGORIES.filter(c => form.categories.includes(c.id) && c.requiresTemp)
+  const requiresTemp = tempRequiredCats.length > 0
 
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       const { data: profile } = await supabase.from('profiles').select('location_id').eq('id', user!.id).single()
-      const { data: loc } = await supabase.from('locations').select('suppliers').eq('id', profile?.location_id ?? '').single()
-      setSuppliers(loc?.suppliers ?? [])
+      const { data } = await supabase
+        .from('location_suppliers')
+        .select('*')
+        .eq('location_id', profile?.location_id ?? '')
+        .order('alias')
+      setSuppliers(data ?? [])
     }
     load()
   }, [])
@@ -60,24 +79,44 @@ export default function NowaDostawaPage() {
   }
 
   async function saveNewSupplier() {
-    const name = newSupplier.trim()
-    if (!name) return
+    if (!newSupp.alias.trim()) { toast.error('Wpisz alias / skróconą nazwę'); return }
     const { locationId } = await getCtx()
-    const updated = [...suppliers, name]
-    await supabase.from('locations').update({ suppliers: updated }).eq('id', locationId)
-    setSuppliers(updated)
-    setForm(p => ({ ...p, supplier: name }))
-    setNewSupplier('')
+    const { data, error } = await supabase
+      .from('location_suppliers')
+      .insert({
+        location_id: locationId,
+        alias: newSupp.alias.trim(),
+        full_name: newSupp.full_name.trim(),
+        nip: newSupp.nip.trim(),
+        notes: newSupp.notes.trim() || null,
+      })
+      .select()
+      .single()
+    if (error) { toast.error('Błąd zapisu dostawcy: ' + error.message); return }
+    setSuppliers(p => [...p, data].sort((a, b) => a.alias.localeCompare(b.alias)))
+    setForm(p => ({ ...p, supplier: data.alias }))
+    setNewSupp(EMPTY_NEW_SUPP)
     setShowAddSupplier(false)
+    toast.success('Dostawca dodany!')
+  }
+
+  function toggleCategory(id: string) {
+    setForm(p => ({
+      ...p,
+      categories: p.categories.includes(id)
+        ? p.categories.filter(c => c !== id)
+        : [...p.categories, id],
+    }))
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.supplier) { toast.error('Wybierz lub wpisz dostawcę'); return }
-    if (!form.category) { toast.error('Wybierz kategorię dostawy'); return }
-    if (!form.product) { toast.error('Podaj nazwę produktu'); return }
+    if (form.categories.length === 0) { toast.error('Wybierz przynajmniej jedną kategorię dostawy'); return }
+    if (!form.product) { toast.error('Podaj nazwę produktu / towaru'); return }
     if (requiresTemp && !form.temp_at_delivery) {
-      toast.error(`Temperatura wymagana dla kategorii "${selectedCat?.label}" — norma: ${selectedCat?.tempHint}`)
+      const names = tempRequiredCats.map(c => `${c.label} (${c.tempHint})`).join(', ')
+      toast.error(`Temperatura wymagana dla: ${names}`)
       return
     }
     setLoading(true)
@@ -96,7 +135,7 @@ export default function NowaDostawaPage() {
     const { error } = await supabase.from('delivery_logs').insert({
       location_id: locationId,
       supplier: form.supplier,
-      category: form.category || null,
+      categories: form.categories,
       product: form.product,
       quantity: form.quantity,
       temp_at_delivery: form.temp_at_delivery ? parseFloat(form.temp_at_delivery) : null,
@@ -128,96 +167,151 @@ export default function NowaDostawaPage() {
 
       <form onSubmit={handleSubmit} className="card space-y-5">
 
-        {/* Supplier */}
+        {/* ── Supplier ── */}
         <div>
-          <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center justify-between mb-2">
             <p className="label mb-0">Dostawca</p>
             <button type="button" onClick={() => setShowAddSupplier(!showAddSupplier)}
-              className="text-xs text-brand-green hover:underline">
-              + Dodaj nowego dostawcę
+              className="text-xs text-brand-green hover:underline flex items-center gap-1">
+              <Plus size={12} /> Dodaj nowego dostawcę
             </button>
           </div>
+
           {showAddSupplier && (
-            <div className="flex gap-2 mb-2">
-              <input className="input flex-1 text-sm" placeholder="Nazwa dostawcy" value={newSupplier}
-                onChange={(e) => setNewSupplier(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), saveNewSupplier())} />
-              <Button type="button" size="sm" onClick={saveNewSupplier}>Dodaj</Button>
-              <Button type="button" size="sm" variant="ghost" onClick={() => setShowAddSupplier(false)}>Anuluj</Button>
+            <div className="mb-3 p-3 border border-gray-200 rounded-lg bg-gray-50 space-y-3">
+              <p className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                <Building2 size={14} /> Nowy dostawca
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="label text-xs">Alias / skrócona nazwa <span className="text-red-500">*</span></label>
+                  <input className="input text-sm" placeholder='np. "Triada"'
+                    value={newSupp.alias} onChange={(e) => setNewSupp(p => ({ ...p, alias: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="label text-xs">NIP</label>
+                  <input className="input text-sm font-mono" placeholder="1234567890"
+                    value={newSupp.nip} onChange={(e) => setNewSupp(p => ({ ...p, nip: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label className="label text-xs">Pełna nazwa firmy</label>
+                <input className="input text-sm" placeholder='np. "Triada Sp. z o.o."'
+                  value={newSupp.full_name} onChange={(e) => setNewSupp(p => ({ ...p, full_name: e.target.value }))} />
+              </div>
+              <div>
+                <label className="label text-xs">Uwagi (opcjonalnie)</label>
+                <input className="input text-sm" placeholder="np. Dostarcza w poniedziałki i czwartki"
+                  value={newSupp.notes} onChange={(e) => setNewSupp(p => ({ ...p, notes: e.target.value }))} />
+              </div>
+              <div className="flex gap-2">
+                <Button type="button" size="sm" onClick={saveNewSupplier}>Zapisz dostawcę</Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => { setShowAddSupplier(false); setNewSupp(EMPTY_NEW_SUPP) }}>Anuluj</Button>
+              </div>
             </div>
           )}
-          {suppliers.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-2">
-              {suppliers.map((s) => (
-                <button key={s} type="button" onClick={() => setForm(p => ({ ...p, supplier: s }))}
-                  className={cn('px-3 py-1.5 rounded-lg text-sm border transition-colors',
-                    form.supplier === s
-                      ? 'border-brand-green bg-green-50 text-green-700 font-medium'
-                      : 'border-gray-200 hover:border-gray-300 text-gray-700')}>
-                  {s}
-                </button>
-              ))}
+
+          {suppliers.length > 0 ? (
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              {suppliers.map((s) => {
+                const isSelected = form.supplier === s.alias
+                return (
+                  <button key={s.id} type="button"
+                    onClick={() => setForm(p => ({ ...p, supplier: p.supplier === s.alias ? '' : s.alias }))}
+                    className={cn(
+                      'p-2.5 rounded-lg border text-left transition-colors',
+                      isSelected
+                        ? 'border-brand-green bg-green-50'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    )}>
+                    <p className={cn('text-sm font-semibold leading-tight', isSelected ? 'text-green-700' : 'text-gray-800')}>
+                      {s.alias}
+                    </p>
+                    {s.full_name && (
+                      <p className="text-xs text-gray-500 leading-tight mt-0.5 truncate">{s.full_name}</p>
+                    )}
+                    {s.nip && (
+                      <p className="text-xs text-gray-400 font-mono mt-0.5">NIP: {s.nip}</p>
+                    )}
+                  </button>
+                )
+              })}
             </div>
+          ) : (
+            !showAddSupplier && (
+              <p className="text-xs text-gray-400 mb-2">
+                Brak dostawców. Dodaj pierwszego klikając przycisk powyżej.
+              </p>
+            )
           )}
-          <input className="input text-sm" placeholder="Lub wpisz dostawcę ręcznie..."
+
+          <input className="input text-sm" placeholder="Lub wpisz ręcznie..."
             value={form.supplier} onChange={(e) => setForm(p => ({ ...p, supplier: e.target.value }))} />
         </div>
 
-        {/* Category */}
+        {/* ── Categories (multi-select) ── */}
         <div>
-          <p className="label">Kategoria dostawy</p>
+          <p className="label">
+            Kategoria dostawy
+            <span className="ml-1 text-xs font-normal text-gray-400">(można zaznaczyć kilka)</span>
+          </p>
           <div className="grid grid-cols-2 gap-2">
-            {DELIVERY_CATEGORIES.map((cat) => (
-              <button key={cat.id} type="button"
-                onClick={() => setForm(p => ({ ...p, category: cat.id, temp_at_delivery: '' }))}
-                className={cn(
-                  'px-3 py-2 rounded-lg text-sm border transition-colors text-left flex items-center justify-between gap-1',
-                  form.category === cat.id
-                    ? cn(cat.activeClass, 'font-medium')
-                    : 'border-gray-200 hover:border-gray-300 text-gray-700 bg-white'
-                )}>
-                <span>{cat.label}</span>
-                {cat.requiresTemp && <Thermometer size={12} className="shrink-0 opacity-50" />}
-              </button>
-            ))}
+            {DELIVERY_CATEGORIES.map((cat) => {
+              const isSelected = form.categories.includes(cat.id)
+              return (
+                <button key={cat.id} type="button" onClick={() => toggleCategory(cat.id)}
+                  className={cn(
+                    'px-3 py-2 rounded-lg text-sm border transition-colors text-left flex items-center justify-between gap-1',
+                    isSelected
+                      ? cn(cat.activeClass, 'font-medium')
+                      : 'border-gray-200 hover:border-gray-300 text-gray-700 bg-white'
+                  )}>
+                  <span>{cat.label}</span>
+                  {cat.requiresTemp && <Thermometer size={12} className="shrink-0 opacity-50" />}
+                </button>
+              )
+            })}
           </div>
-          {selectedCat?.requiresTemp && (
-            <p className="text-xs text-orange-600 mt-1.5 flex items-center gap-1">
-              <Thermometer size={12} />
-              Wymagany pomiar temperatury zgodnie z HACCP — norma: <strong>{selectedCat.tempHint}</strong>
-            </p>
+          {requiresTemp && (
+            <div className="mt-2 text-xs text-orange-600 flex items-start gap-1.5">
+              <Thermometer size={12} className="mt-0.5 shrink-0" />
+              <span>
+                Wymagany pomiar temperatury (HACCP):
+                {' '}{tempRequiredCats.map(c => `${c.label} ${c.tempHint}`).join(' · ')}
+              </span>
+            </div>
           )}
         </div>
 
-        {/* Product + Quantity */}
+        {/* ── Product + Quantity ── */}
         <Input label="Produkt / towar" placeholder="np. Pierś z kurczaka, Mleko 3,2%"
           value={form.product} onChange={(e) => setForm(p => ({ ...p, product: e.target.value }))} required />
 
         <Input label="Ilość" placeholder="np. 10 kg, 50 szt., 5 kartonów"
           value={form.quantity} onChange={(e) => setForm(p => ({ ...p, quantity: e.target.value }))} required />
 
-        {/* Temperature — only for categories that require it */}
+        {/* ── Temperature (only when required) ── */}
         {requiresTemp && (
           <div>
             <label className="label">
               Temperatura przy odbiorze (°C)
-              <span className="ml-1 text-xs font-normal text-orange-500">wymagane · norma: {selectedCat?.tempHint}</span>
+              <span className="ml-1 text-xs font-normal text-orange-500">wymagane</span>
             </label>
             <input type="number" step="0.1" className="input font-mono"
-              placeholder={form.category === 'mrozonki' ? 'np. −18.5' : 'np. 4.2'}
+              placeholder={form.categories.includes('mrozonki') ? 'np. −18.5' : 'np. 4.2'}
               value={form.temp_at_delivery}
               onChange={(e) => setForm(p => ({ ...p, temp_at_delivery: e.target.value }))} />
           </div>
         )}
 
-        {/* Expiry date */}
+        {/* ── Expiry date ── */}
         <div>
           <label className="label">Data ważności (opcjonalnie)</label>
           <input type="date" className="input" value={form.expiry_date}
             onChange={(e) => setForm(p => ({ ...p, expiry_date: e.target.value }))} />
         </div>
 
-        {/* Quality */}
+        {/* ── Quality ── */}
         <div>
           <label className="label">Jakość dostawy</label>
           <div className="flex gap-3">
@@ -240,7 +334,7 @@ export default function NowaDostawaPage() {
           </div>
         </div>
 
-        {/* Document / photo upload */}
+        {/* ── Document upload ── */}
         <div>
           <label className="label">Dokument / zdjęcie dostawy (opcjonalnie)</label>
           <div className="flex items-center gap-2">
@@ -258,7 +352,7 @@ export default function NowaDostawaPage() {
           </div>
         </div>
 
-        {/* Notes */}
+        {/* ── Notes ── */}
         <div>
           <label className="label">Uwagi (opcjonalnie)</label>
           <textarea rows={2} placeholder="Dodatkowe informacje, zastrzeżenia..."

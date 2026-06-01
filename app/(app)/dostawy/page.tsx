@@ -5,18 +5,18 @@ import { formatDateTime } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 
 const CAT_MAP: Record<string, { label: string; cls: string }> = {
-  mieso:    { label: 'Mięso świeże',     cls: 'text-red-700 bg-red-50' },
-  drob:     { label: 'Drób',             cls: 'text-orange-700 bg-orange-50' },
-  ryby:     { label: 'Ryby',             cls: 'text-blue-700 bg-blue-50' },
-  wedliny:  { label: 'Wędliny',          cls: 'text-rose-700 bg-rose-50' },
-  nabiał:   { label: 'Nabiał',           cls: 'text-yellow-700 bg-yellow-50' },
-  mrozonki: { label: 'Mrożonki',         cls: 'text-cyan-700 bg-cyan-50' },
-  gotowe:   { label: 'Dania gotowe',     cls: 'text-purple-700 bg-purple-50' },
-  warzywa:  { label: 'Warzywa i owoce',  cls: 'text-green-700 bg-green-50' },
-  suche:    { label: 'Produkty suche',   cls: 'text-amber-700 bg-amber-50' },
-  pieczywo: { label: 'Pieczywo',         cls: 'text-amber-700 bg-amber-50' },
-  napoje:   { label: 'Napoje',           cls: 'text-sky-700 bg-sky-50' },
-  inne:     { label: 'Inne',             cls: 'text-gray-600 bg-gray-100' },
+  mieso:    { label: 'Mięso świeże',    cls: 'text-red-700 bg-red-50' },
+  drob:     { label: 'Drób',            cls: 'text-orange-700 bg-orange-50' },
+  ryby:     { label: 'Ryby',            cls: 'text-blue-700 bg-blue-50' },
+  wedliny:  { label: 'Wędliny',         cls: 'text-rose-700 bg-rose-50' },
+  nabiał:   { label: 'Nabiał',          cls: 'text-yellow-700 bg-yellow-50' },
+  mrozonki: { label: 'Mrożonki',        cls: 'text-cyan-700 bg-cyan-50' },
+  gotowe:   { label: 'Dania gotowe',    cls: 'text-purple-700 bg-purple-50' },
+  warzywa:  { label: 'Warzywa i owoce', cls: 'text-green-700 bg-green-50' },
+  suche:    { label: 'Produkty suche',  cls: 'text-amber-700 bg-amber-50' },
+  pieczywo: { label: 'Pieczywo',        cls: 'text-amber-700 bg-amber-50' },
+  napoje:   { label: 'Napoje',          cls: 'text-sky-700 bg-sky-50' },
+  inne:     { label: 'Inne',            cls: 'text-gray-600 bg-gray-100' },
 }
 
 export default async function DostawyPage() {
@@ -29,12 +29,23 @@ export default async function DostawyPage() {
     .eq('id', user!.id)
     .single()
 
-  const { data: logs } = await supabase
-    .from('delivery_logs')
-    .select('*')
-    .eq('location_id', profile?.location_id ?? '')
-    .order('received_at', { ascending: false })
-    .limit(50)
+  const locationId = profile?.location_id ?? ''
+
+  const [logsRes, suppliersRes] = await Promise.all([
+    supabase
+      .from('delivery_logs')
+      .select('*')
+      .eq('location_id', locationId)
+      .order('received_at', { ascending: false })
+      .limit(50),
+    supabase
+      .from('location_suppliers')
+      .select('alias, full_name, nip')
+      .eq('location_id', locationId),
+  ])
+
+  const logs = logsRes.data ?? []
+  const suppMap = Object.fromEntries((suppliersRes.data ?? []).map(s => [s.alias, s]))
 
   return (
     <div className="space-y-6">
@@ -49,34 +60,46 @@ export default async function DostawyPage() {
         </Link>
       </div>
 
-      {logs && logs.length > 0 ? (
+      {logs.length > 0 ? (
         <div className="card">
           <div className="divide-y divide-gray-50">
             {logs.map((log) => {
-              const cat = log.category ? CAT_MAP[log.category] : null
+              const supp = suppMap[log.supplier]
+              const cats: string[] = Array.isArray(log.categories) ? log.categories : (log.category ? [log.category] : [])
               return (
                 <div key={log.id} className="py-3">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                      {/* Product + quality + categories */}
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
                         <p className="font-medium text-sm text-gray-900">{log.product}</p>
                         <Badge variant={log.quality_ok ? 'ok' : 'error'}>
                           {log.quality_ok ? 'OK' : 'Niezgodna'}
                         </Badge>
-                        {cat && (
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cat.cls}`}>
-                            {cat.label}
-                          </span>
+                      </div>
+                      {cats.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-1">
+                          {cats.map(c => {
+                            const cat = CAT_MAP[c]
+                            return cat ? (
+                              <span key={c} className={`text-xs px-2 py-0.5 rounded-full font-medium ${cat.cls}`}>
+                                {cat.label}
+                              </span>
+                            ) : null
+                          })}
+                        </div>
+                      )}
+                      {/* Supplier */}
+                      <div className="mb-0.5">
+                        <p className="text-xs text-gray-700 font-medium">{log.supplier}</p>
+                        {supp?.full_name && (
+                          <p className="text-xs text-gray-400">{supp.full_name}{supp.nip ? ` · NIP: ${supp.nip}` : ''}</p>
                         )}
                       </div>
-                      <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-0.5">
-                        <p className="text-xs text-gray-500">
-                          Dostawca: <span className="text-gray-700">{log.supplier}</span>
-                        </p>
+                      {/* Details row */}
+                      <div className="flex flex-wrap gap-x-4 gap-y-0.5">
                         {log.quantity && (
-                          <p className="text-xs text-gray-500">
-                            Ilość: <span className="text-gray-700">{log.quantity}</span>
-                          </p>
+                          <p className="text-xs text-gray-500">Ilość: <span className="text-gray-700">{log.quantity}</span></p>
                         )}
                         {log.temp_at_delivery !== null && (
                           <p className="text-xs text-gray-500 flex items-center gap-0.5">
@@ -85,9 +108,7 @@ export default async function DostawyPage() {
                           </p>
                         )}
                         {log.expiry_date && (
-                          <p className="text-xs text-gray-500">
-                            Termin: <span className="text-gray-700">{log.expiry_date}</span>
-                          </p>
+                          <p className="text-xs text-gray-500">Termin: <span className="text-gray-700">{log.expiry_date}</span></p>
                         )}
                       </div>
                       {log.notes && <p className="text-xs text-gray-400 mt-0.5">{log.notes}</p>}
@@ -98,9 +119,7 @@ export default async function DostawyPage() {
                         </a>
                       )}
                     </div>
-                    <p className="text-xs text-gray-400 whitespace-nowrap">
-                      {formatDateTime(log.received_at)}
-                    </p>
+                    <p className="text-xs text-gray-400 whitespace-nowrap">{formatDateTime(log.received_at)}</p>
                   </div>
                 </div>
               )
