@@ -117,6 +117,7 @@ export default function NowaDostawaPage() {
   async function handleScan(file: File) {
     setScanning(true)
     setScanResult(null)
+    setFile(file) // pre-fill step 4 attachment with the scanned file
     try {
       const fd = new FormData()
       fd.append('file', file)
