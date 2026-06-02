@@ -15,19 +15,31 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('*, locations(name)')
+    .select('location_id, org_id, locations(name)')
     .eq('id', user.id)
     .single()
 
-  const locationName = (profile?.locations as { name: string } | null)?.name ?? 'Mój lokal'
+  const locRaw = profile?.locations
+  const locationName = (locRaw && !Array.isArray(locRaw) ? (locRaw as { name: string }) : null)?.name ?? 'Mój lokal'
+  const currentLocationId = profile?.location_id ?? ''
+
+  // Fetch all locations for this org so topbar can show switcher
+  const { data: allLocations } = await supabase
+    .from('locations')
+    .select('id, name')
+    .eq('org_id', profile?.org_id ?? '')
+    .order('name')
 
   return (
     <div className="min-h-screen bg-gray-50">
       <ToastProvider />
-      {/* Desktop sidebar */}
       <Sidebar />
-      {/* Topbar — mobile full width, desktop offset */}
-      <Topbar locationName={locationName} userEmail={user.email} />
+      <Topbar
+        locationName={locationName}
+        userEmail={user.email}
+        locations={allLocations ?? []}
+        currentLocationId={currentLocationId}
+      />
       <main className="lg:ml-64 pt-14 pb-16 lg:pb-0 min-h-screen">
         <div className="p-4 md:p-6 max-w-5xl">
           {children}

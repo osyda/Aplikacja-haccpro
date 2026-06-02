@@ -53,13 +53,9 @@ export default function LocalePage() {
       return
     }
 
-    if (loc) {
-      await supabase.from('profiles').update({ location_id: loc.id }).eq('id', user.id)
-    }
-
     setLoading(false)
     setSuccess(true)
-    toast.success('Lokal zapisany!')
+    toast.success('Lokal zapisany! Możesz go wybrać w nagłówku aplikacji.')
     setForm({ name: '', address: '', city: '', type: '' })
     fetchLocations()
     setTimeout(() => { setSuccess(false); setShowForm(false) }, 2000)
