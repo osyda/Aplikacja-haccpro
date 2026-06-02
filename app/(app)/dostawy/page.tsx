@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { Truck, Plus, Paperclip, Thermometer } from 'lucide-react'
+import { Truck, Plus, Thermometer, Search } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 
@@ -68,15 +68,16 @@ export default async function DostawyPage() {
               const cats: string[] = Array.isArray(log.categories) ? log.categories : (log.category ? [log.category] : [])
               return (
                 <div key={log.id} className="py-3">
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      {/* Product + quality + categories */}
+                      {/* Product + quality */}
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <p className="font-medium text-sm text-gray-900">{log.product}</p>
                         <Badge variant={log.quality_ok ? 'ok' : 'error'}>
                           {log.quality_ok ? 'OK' : 'Niezgodna'}
                         </Badge>
                       </div>
+                      {/* Categories */}
                       {cats.length > 0 && (
                         <div className="flex flex-wrap gap-1 mb-1">
                           {cats.map(c => {
@@ -96,7 +97,7 @@ export default async function DostawyPage() {
                           <p className="text-xs text-gray-400">{supp.full_name}{supp.nip ? ` · NIP: ${supp.nip}` : ''}</p>
                         )}
                       </div>
-                      {/* Details row */}
+                      {/* Details */}
                       <div className="flex flex-wrap gap-x-4 gap-y-0.5">
                         {log.quantity && (
                           <p className="text-xs text-gray-500">Ilość: <span className="text-gray-700">{log.quantity}</span></p>
@@ -111,15 +112,29 @@ export default async function DostawyPage() {
                           <p className="text-xs text-gray-500">Termin: <span className="text-gray-700">{log.expiry_date}</span></p>
                         )}
                       </div>
-                      {log.notes && <p className="text-xs text-gray-400 mt-0.5">{log.notes}</p>}
-                      {log.photo_url && (
-                        <a href={log.photo_url} target="_blank" rel="noreferrer"
-                          className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-0.5">
-                          <Paperclip size={10} /> Dokument
-                        </a>
-                      )}
+                      {log.notes && <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">{log.notes}</p>}
+                      <p className="text-xs text-gray-400 mt-1">{formatDateTime(log.received_at)}</p>
                     </div>
-                    <p className="text-xs text-gray-400 whitespace-nowrap">{formatDateTime(log.received_at)}</p>
+
+                    {/* Document preview icon */}
+                    {log.photo_url ? (
+                      <a
+                        href={log.photo_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Podgląd dokumentu / zdjęcia"
+                        className="shrink-0 p-2.5 rounded-xl border border-gray-200 hover:border-purple-400 hover:bg-purple-50 transition-colors text-gray-400 hover:text-purple-600"
+                      >
+                        <Search size={18} />
+                      </a>
+                    ) : (
+                      <div
+                        title="Brak dokumentu"
+                        className="shrink-0 p-2.5 rounded-xl border border-dashed border-gray-200 text-gray-300"
+                      >
+                        <Search size={18} />
+                      </div>
+                    )}
                   </div>
                 </div>
               )
