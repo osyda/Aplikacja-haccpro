@@ -1,44 +1,111 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Droplets, Plus, Paperclip, X, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react'
+import { Droplets, Plus, Paperclip, X, ChevronDown, ChevronUp, Check } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
-const DEFAULT_AREAS = ['Kuchnia', 'Sala', 'Toalety', 'Magazyn', 'Witryna', 'Sprzęt kuchenny', 'Lodówki', 'Podłogi']
-const DEFAULT_AGENTS = ['Fairy', 'Domestos', 'Clinex', 'Suma Bac D10', 'Incidin Plus']
+type Dept = 'kitchen_back' | 'service_hall'
+type HistFilter = 'all' | Dept
 
-interface Log {
-  id: string
-  area: string
-  agent: string
-  cleaned_at: string
-  notes: string | null
-  doc_url: string | null
+const DEPT = {
+  kitchen_back: {
+    label: 'KUCHNIA / ZAPLECZE',
+    badge: 'KUCHNIA',
+    description: 'Obszary kuchni, lodówki, magazyn, pizzerka',
+    badgeCls: 'bg-orange-100 text-orange-700',
+    areas: [
+      'Kuchnia', 'Pizzerka', 'Blaty robocze', 'Stoły produkcyjne', 'Zlewy', 'Zmywak',
+      'Piekarnik', 'Płyta / kuchnia gazowa', 'Okap', 'Sprzęt kuchenny', 'Deski i noże',
+      'Pojemniki GN', 'Podłoga kuchnia', 'Ściany przy stanowiskach', 'Kosze na odpady',
+      'Magazyn suchy', 'Regały magazynowe', 'Podłoga magazyn', 'Strefa dostaw',
+      'Zaplecze socjalne', 'Chłodnia', 'Lodówka kuchnia duża', 'Lodówka kuchnia mała',
+      'Lodówka obierak', 'Stół chłodniczy pizza', 'Zamrażarka kuchnia', 'Zamrażarka przejście',
+    ],
+    agents: [
+      'Suma Bac D10', 'Fairy', 'Clinex', 'Incidin Plus', 'Clovin Multi',
+      'Hyperin', 'Środek do podłóg', 'Środek do piekarnika', 'Środek do grilla / tłuszczu',
+    ],
+    combos: [
+      { area: 'Pizzerka', agent: 'Fairy' },
+      { area: 'Blaty robocze', agent: 'Suma Bac D10' },
+      { area: 'Zlewy', agent: 'Suma Bac D10' },
+      { area: 'Podłoga kuchnia', agent: 'Środek do podłóg' },
+      { area: 'Chłodnia', agent: 'Incidin Plus' },
+    ],
+  },
+  service_hall: {
+    label: 'SALA',
+    badge: 'SALA',
+    description: 'Sala, bar, toalety, ogródek',
+    badgeCls: 'bg-blue-100 text-blue-700',
+    areas: [
+      'Sala konsumpcyjna', 'Stoliki', 'Krzesła', 'Bar', 'Ekspres do kawy', 'Witryna',
+      'Lodówki barowe', 'Lodówka bar sala 1', 'Lodówka bar sala 2', 'Lodówka bar sala 3',
+      'Lodówka ekspres', 'Lodówka bar sala - PEPSI', 'Lodówka ogród PEPSI 1',
+      'Lodówka ogród PEPSI 2', 'Lodówka ogród ŻYWIEC', 'Terminal / kasa', 'Klamki',
+      'Menu / karty menu', 'Podłoga sala', 'Ogródek', 'Stoliki ogródek', 'Krzesła ogródek',
+      'Toalety', 'Toaleta damska', 'Toaleta męska', 'Umywalki', 'Lustra',
+      'Muszle WC', 'Pisuar', 'Dozowniki', 'Podłoga toalety', 'Kosze toalety',
+    ],
+    agents: [
+      'Clinex', 'Fairy', 'Domestos', 'Incidin Plus', 'Płyn do szyb',
+      'Środek do blatów', 'Środek do podłóg', 'Środek do WC',
+    ],
+    combos: [
+      { area: 'Stoliki', agent: 'Clinex' },
+      { area: 'Bar', agent: 'Clinex' },
+      { area: 'Ekspres do kawy', agent: 'Clinex' },
+      { area: 'Toalety', agent: 'Domestos' },
+      { area: 'Podłoga sala', agent: 'Środek do podłóg' },
+    ],
+  },
+} as const
+
+const KITCHEN_SET = new Set<string>(DEPT.kitchen_back.areas)
+const HALL_SET = new Set<string>(DEPT.service_hall.areas)
+const LEGACY: Record<string, Dept> = {
+  Kuchnia: 'kitchen_back', Magazyn: 'kitchen_back', Lodówki: 'kitchen_back',
+  'Sprzęt kuchenny': 'kitchen_back', Podłogi: 'kitchen_back',
+  Sala: 'service_hall', Toalety: 'service_hall', Witryna: 'service_hall',
+}
+
+function deriveDept(area: string): Dept | null {
+  if (KITCHEN_SET.has(area)) return 'kitchen_back'
+  if (HALL_SET.has(area)) return 'service_hall'
+  return LEGACY[area] ?? null
 }
 
 function getTodayStart() {
   const d = new Date(); d.setHours(0, 0, 0, 0); return d.toISOString()
 }
 
+interface Log { id: string; area: string; agent: string; cleaned_at: string; notes: string | null; doc_url: string | null }
+
 export default function MyCiePage() {
   const [logs, setLogs] = useState<Log[]>([])
-  const [expanded, setExpanded] = useState(false)
+  const [customAreas, setCustomAreas] = useState<string[]>([])
+  const [customAgents, setCustomAgents] = useState<string[]>([])
+
+  const [dept, setDept] = useState<Dept | null>(null)
   const [area, setArea] = useState('')
   const [agent, setAgent] = useState('')
   const [notes, setNotes] = useState('')
-  const [customAreas, setCustomAreas] = useState<string[]>([])
-  const [customAgents, setCustomAgents] = useState<string[]>([])
-  const [newArea, setNewArea] = useState('')
-  const [newAgent, setNewAgent] = useState('')
-  const [showAddArea, setShowAddArea] = useState(false)
-  const [showAddAgent, setShowAddAgent] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
+
+  const [showAddArea, setShowAddArea] = useState(false)
+  const [customAreaInput, setCustomAreaInput] = useState('')
+  const [showAddAgent, setShowAddAgent] = useState(false)
+  const [customAgentInput, setCustomAgentInput] = useState('')
+
+  const [histFilter, setHistFilter] = useState<HistFilter>('all')
   const [showHistory, setShowHistory] = useState(false)
+
   const fileRef = useRef<HTMLInputElement>(null)
+  const formRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
 
   async function getCtx() {
@@ -51,7 +118,7 @@ export default function MyCiePage() {
     const { locationId } = await getCtx()
     const [logsRes, locRes] = await Promise.all([
       supabase.from('cleaning_logs').select('id,area,agent,cleaned_at,notes,doc_url')
-        .eq('location_id', locationId).order('cleaned_at', { ascending: false }).limit(50),
+        .eq('location_id', locationId).order('cleaned_at', { ascending: false }).limit(100),
       supabase.from('locations').select('cleaning_areas,cleaning_agents').eq('id', locationId).single(),
     ])
     setLogs(logsRes.data ?? [])
@@ -61,26 +128,21 @@ export default function MyCiePage() {
 
   useEffect(() => { fetchData() }, [])
 
-  async function saveCustomArea() {
-    if (!newArea.trim()) return
-    const { locationId } = await getCtx()
-    const updated = [...customAreas, newArea.trim()]
-    await supabase.from('locations').update({ cleaning_areas: updated }).eq('id', locationId)
-    setCustomAreas(updated); setNewArea(''); setShowAddArea(false)
+  function selectDept(d: Dept) {
+    setDept(d); setArea(''); setAgent('')
+    setShowAddArea(false); setShowAddAgent(false)
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
   }
 
-  async function saveCustomAgent() {
-    if (!newAgent.trim()) return
-    const { locationId } = await getCtx()
-    const updated = [...customAgents, newAgent.trim()]
-    await supabase.from('locations').update({ cleaning_agents: updated }).eq('id', locationId)
-    setCustomAgents(updated); setNewAgent(''); setShowAddAgent(false)
+  function applyCombo(a: string, ag: string, d: Dept) {
+    setDept(d); setArea(a); setAgent(ag)
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80)
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!area) { toast.error('Wybierz lub wpisz obszar'); return }
-    if (!agent) { toast.error('Wybierz lub wpisz środek czyszczący'); return }
+  async function handleSave() {
+    if (!dept) { toast.error('Wybierz dział: Kuchnia / zaplecze albo Sala.'); return }
+    if (!area.trim()) { toast.error('Wybierz obszar mycia.'); return }
+    if (!agent.trim()) { toast.error('Wybierz środek czyszczący.'); return }
     setLoading(true)
     const { locationId, userId } = await getCtx()
 
@@ -88,46 +150,70 @@ export default function MyCiePage() {
     if (file) {
       const ext = file.name.split('.').pop()
       const path = `cleaning/${locationId}/${Date.now()}.${ext}`
-      const { data: upload, error: uploadError } = await supabase.storage.from('documents').upload(path, file, { upsert: false })
-      if (uploadError) { toast.error('Błąd uploadu: ' + uploadError.message); setLoading(false); return }
+      const { data: upload, error: uploadErr } = await supabase.storage
+        .from('documents').upload(path, file, { upsert: false })
+      if (uploadErr) { toast.error('Błąd uploadu: ' + uploadErr.message); setLoading(false); return }
       docUrl = supabase.storage.from('documents').getPublicUrl(upload.path).data.publicUrl
     }
 
     const { error } = await supabase.from('cleaning_logs').insert({
-      location_id: locationId, area, agent, concentration: null,
-      cleaned_at: new Date().toISOString(), recorded_by: userId,
-      notes: notes || null, doc_url: docUrl,
+      location_id: locationId, area: area.trim(), agent: agent.trim(),
+      concentration: null, cleaned_at: new Date().toISOString(),
+      recorded_by: userId, notes: notes.trim() || null, doc_url: docUrl,
     })
     setLoading(false)
     if (error) { toast.error('Błąd zapisu: ' + error.message); return }
-    toast.success('Wpis mycia zapisany!')
+    toast.success('Wpis mycia zapisany.')
     setArea(''); setAgent(''); setNotes(''); setFile(null)
     if (fileRef.current) fileRef.current.value = ''
-    setExpanded(false)
+    setShowAddArea(false); setShowAddAgent(false)
     fetchData()
   }
 
-  const allAreas = [...DEFAULT_AREAS, ...customAreas]
-  const allAgents = [...DEFAULT_AGENTS, ...customAgents]
-
   const todayStart = getTodayStart()
-  const todayLogs = logs.filter(l => new Date(l.cleaned_at) >= new Date(todayStart))
-  const lastLog = logs[0] ?? null
+  const todayLogs = useMemo(() => logs.filter(l => new Date(l.cleaned_at) >= new Date(todayStart)), [logs])
 
-  // Compute "frequently used" from recent logs
-  const comboCounts = new Map<string, number>()
-  logs.slice(0, 20).forEach(l => {
-    const key = `${l.area}|||${l.agent}`
-    comboCounts.set(key, (comboCounts.get(key) ?? 0) + 1)
-  })
-  const topCombos = Array.from(comboCounts.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([key]) => { const [a, ag] = key.split('|||'); return { area: a, agent: ag } })
+  const quickCombos = useMemo(() => {
+    if (!dept) return []
+    const relevant = logs.filter(l => deriveDept(l.area) === dept).slice(0, 30)
+    const counts = new Map<string, number>()
+    relevant.forEach(l => {
+      const k = `${l.area}|||${l.agent}`
+      counts.set(k, (counts.get(k) ?? 0) + 1)
+    })
+    const fromHistory = Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1]).slice(0, 5)
+      .map(([k]) => { const [a, ag] = k.split('|||'); return { area: a, agent: ag } })
+    if (fromHistory.length >= 3) return fromHistory
+    const seen = new Set(fromHistory.map(c => `${c.area}|||${c.agent}`))
+    const extras = (DEPT[dept].combos as readonly { area: string; agent: string }[])
+      .filter(c => !seen.has(`${c.area}|||${c.agent}`))
+    return [...fromHistory, ...extras].slice(0, 5)
+  }, [logs, dept])
 
-  function applyCombo(a: string, ag: string) {
-    setArea(a); setAgent(ag); setExpanded(true)
-    setTimeout(() => document.getElementById('cleaning-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+  const deptAreas = useMemo(() =>
+    dept ? [...(DEPT[dept].areas as readonly string[]), ...customAreas] : [],
+    [dept, customAreas]
+  )
+  const deptAgents = useMemo(() =>
+    dept ? [...(DEPT[dept].agents as readonly string[]), ...customAgents] : [],
+    [dept, customAgents]
+  )
+
+  const filteredHistory = useMemo(() => {
+    const past = logs.filter(l => new Date(l.cleaned_at) < new Date(todayStart))
+    if (histFilter === 'all') return past
+    return past.filter(l => deriveDept(l.area) === histFilter)
+  }, [logs, histFilter])
+
+  function DeptBadge({ area }: { area: string }) {
+    const d = deriveDept(area)
+    if (!d) return null
+    return (
+      <span className={cn('inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full mb-0.5', DEPT[d].badgeCls)}>
+        {DEPT[d].badge}
+      </span>
+    )
   }
 
   return (
@@ -135,167 +221,231 @@ export default function MyCiePage() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Mycie i dezynfekcja</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Dzisiejsze wpisy: <span className="font-semibold text-gray-800">{todayLogs.length}</span></p>
+        <p className="text-sm text-gray-500 mt-0.5">
+          Dzisiaj: <span className="font-semibold text-gray-800">{todayLogs.length} wpisów</span>
+        </p>
       </div>
 
-      {/* Frequently used */}
-      {topCombos.length > 0 && !expanded && (
-        <div className="card space-y-3">
-          <p className="text-sm font-semibold text-gray-700">Najczęściej używane</p>
-          <div className="space-y-2">
-            {topCombos.map(({ area: a, agent: ag }) => (
-              <button key={`${a}+${ag}`} type="button"
-                onClick={() => applyCombo(a, ag)}
-                className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl border-2 border-gray-100 bg-white hover:border-cyan-300 hover:bg-cyan-50 transition-all min-h-[52px] text-left">
-                <div>
-                  <span className="text-sm font-semibold text-gray-900">{a}</span>
-                  <span className="text-gray-400 mx-2 text-xs">+</span>
-                  <span className="text-sm text-gray-600">{ag}</span>
+      {/* Department tiles */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {(Object.keys(DEPT) as Dept[]).map(key => {
+          const cfg = DEPT[key]
+          const isActive = dept === key
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => selectDept(key)}
+              className={cn(
+                'relative text-left p-4 rounded-2xl border-2 transition-all',
+                isActive
+                  ? 'border-green-500 bg-green-50 shadow-sm'
+                  : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+              )}
+            >
+              {isActive && (
+                <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-green-500 flex items-center justify-center">
+                  <Check size={13} className="text-white" />
                 </div>
-                <Plus size={16} className="text-cyan-500 shrink-0" />
-              </button>
-            ))}
-          </div>
-
-          {lastLog && (
-            <button type="button"
-              onClick={() => applyCombo(lastLog.area, lastLog.agent)}
-              className="w-full flex items-center gap-2 text-sm text-cyan-700 font-medium hover:underline">
-              <RotateCcw size={14} />
-              Powtórz ostatni: {lastLog.area} + {lastLog.agent}
+              )}
+              <p className={cn('font-bold text-base pr-8', isActive ? 'text-green-800' : 'text-gray-900')}>
+                {cfg.label}
+              </p>
+              <p className={cn('text-xs mt-1', isActive ? 'text-green-600' : 'text-gray-400')}>
+                {cfg.description}
+              </p>
             </button>
-          )}
+          )
+        })}
+      </div>
+
+      {/* Quick combos */}
+      {dept && quickCombos.length > 0 && (
+        <div className="card space-y-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            Najczęściej używane — {DEPT[dept].badge}
+          </p>
+          <div className="space-y-1.5">
+            {quickCombos.map(({ area: a, agent: ag }) => {
+              const isChosen = area === a && agent === ag
+              return (
+                <button
+                  key={`${a}+${ag}`}
+                  type="button"
+                  onClick={() => applyCombo(a, ag, dept)}
+                  className={cn(
+                    'w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all text-left',
+                    isChosen ? 'border-green-400 bg-green-50' : 'border-gray-100 bg-white hover:border-cyan-200 hover:bg-cyan-50'
+                  )}
+                >
+                  <span className="text-sm">
+                    <span className="font-semibold text-gray-900">{a}</span>
+                    <span className="text-gray-400 mx-2 text-xs">+</span>
+                    <span className="text-gray-600">{ag}</span>
+                  </span>
+                  {isChosen
+                    ? <Check size={15} className="text-green-500 shrink-0" />
+                    : <Plus size={15} className="text-gray-400 shrink-0" />
+                  }
+                </button>
+              )
+            })}
+          </div>
         </div>
       )}
 
-      {/* Add entry button / form */}
-      <div className="card" id="cleaning-form">
-        <button type="button" onClick={() => setExpanded(!expanded)}
-          className="w-full flex items-center justify-between text-left min-h-[52px]">
-          <div className="flex items-center gap-3">
-            <div className="bg-cyan-500 p-2 rounded-xl">
-              <Plus size={16} className="text-white" />
+      {/* Form */}
+      {dept && (
+        <div className="card space-y-5" ref={formRef}>
+          <p className="font-bold text-gray-900">
+            Nowy wpis — <span className={cn('text-sm font-semibold px-2 py-0.5 rounded-full', DEPT[dept].badgeCls)}>{DEPT[dept].badge}</span>
+          </p>
+
+          {/* Areas */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-semibold text-gray-700">Obszar mycia</p>
+              <button type="button"
+                onClick={() => { setShowAddArea(!showAddArea); setCustomAreaInput('') }}
+                className="text-xs text-cyan-600 hover:underline">
+                {showAddArea ? 'Anuluj' : '+ Inny obszar'}
+              </button>
             </div>
-            <span className="font-bold text-gray-900">Dodaj wpis mycia</span>
+            {showAddArea && (
+              <div className="flex gap-2 mb-3">
+                <input
+                  className="input flex-1 text-sm" autoFocus
+                  placeholder="Wpisz nazwę obszaru"
+                  value={customAreaInput}
+                  onChange={e => setCustomAreaInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { e.preventDefault(); setArea(customAreaInput.trim()); setShowAddArea(false) }
+                  }}
+                />
+                <button type="button"
+                  onClick={() => { setArea(customAreaInput.trim()); setShowAddArea(false) }}
+                  className="px-3 py-2 bg-cyan-600 text-white text-sm rounded-lg hover:bg-cyan-700">
+                  Użyj
+                </button>
+              </div>
+            )}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-52 overflow-y-auto pr-0.5">
+              {deptAreas.map(a => (
+                <button key={a} type="button" onClick={() => setArea(a)}
+                  className={cn(
+                    'px-3 py-2.5 rounded-xl border-2 text-xs font-medium transition-all min-h-[44px] text-left',
+                    area === a
+                      ? 'border-green-500 bg-green-50 text-green-800'
+                      : 'border-gray-100 bg-white text-gray-700 hover:border-green-200'
+                  )}>
+                  {a}
+                </button>
+              ))}
+            </div>
+            {area && !deptAreas.includes(area) && (
+              <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700">
+                <Check size={13} className="text-blue-500" />
+                Wybrany: <strong>{area}</strong>
+              </div>
+            )}
           </div>
-          {expanded ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
-        </button>
 
-        {expanded && (
-          <form onSubmit={handleSubmit} className="mt-5 space-y-6">
-
-            {/* SECTION 1: Area */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="font-semibold text-gray-800 text-sm">Co zostało umyte?</p>
-                <button type="button" onClick={() => setShowAddArea(!showAddArea)}
-                  className="text-xs text-cyan-600 hover:underline">+ Dodaj obszar</button>
-              </div>
-              {showAddArea && (
-                <div className="flex gap-2 mb-3">
-                  <input className="input flex-1 text-sm" placeholder="Nazwa obszaru" value={newArea}
-                    onChange={e => setNewArea(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), saveCustomArea())} />
-                  <button type="button" onClick={saveCustomArea}
-                    className="px-3 py-2 bg-cyan-600 text-white text-sm rounded-lg hover:bg-cyan-700">Dodaj</button>
-                  <button type="button" onClick={() => setShowAddArea(false)}
-                    className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">Anuluj</button>
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-2">
-                {allAreas.map(a => (
-                  <button key={a} type="button" onClick={() => setArea(a)}
-                    className={cn(
-                      'px-3 py-3 rounded-xl border-2 text-sm font-medium transition-all min-h-[48px]',
-                      area === a
-                        ? 'border-cyan-500 bg-cyan-50 text-cyan-800'
-                        : 'border-gray-100 bg-white text-gray-700 hover:border-cyan-200'
-                    )}>
-                    {a}
-                  </button>
-                ))}
-              </div>
-              <input className="input mt-3 text-sm" placeholder="Lub wpisz ręcznie..." value={area}
-                onChange={e => setArea(e.target.value)} />
-            </div>
-
-            {/* SECTION 2: Agent */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="font-semibold text-gray-800 text-sm">Czym wykonano mycie/dezynfekcję?</p>
-                <button type="button" onClick={() => setShowAddAgent(!showAddAgent)}
-                  className="text-xs text-cyan-600 hover:underline">+ Dodaj środek</button>
-              </div>
-              {showAddAgent && (
-                <div className="flex gap-2 mb-3">
-                  <input className="input flex-1 text-sm" placeholder="Nazwa środka" value={newAgent}
-                    onChange={e => setNewAgent(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), saveCustomAgent())} />
-                  <button type="button" onClick={saveCustomAgent}
-                    className="px-3 py-2 bg-cyan-600 text-white text-sm rounded-lg hover:bg-cyan-700">Dodaj</button>
-                  <button type="button" onClick={() => setShowAddAgent(false)}
-                    className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">Anuluj</button>
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-2">
-                {allAgents.map(a => (
-                  <button key={a} type="button" onClick={() => setAgent(a)}
-                    className={cn(
-                      'px-3 py-3 rounded-xl border-2 text-sm font-medium transition-all min-h-[48px]',
-                      agent === a
-                        ? 'border-cyan-500 bg-cyan-50 text-cyan-800'
-                        : 'border-gray-100 bg-white text-gray-700 hover:border-cyan-200'
-                    )}>
-                    {a}
-                  </button>
-                ))}
-              </div>
-              <input className="input mt-3 text-sm" placeholder="Lub wpisz ręcznie..." value={agent}
-                onChange={e => setAgent(e.target.value)} />
-            </div>
-
-            {/* SECTION 3: Extra */}
-            <div className="space-y-3">
-              <p className="font-semibold text-gray-800 text-sm">Dodatkowe informacje</p>
-              <div>
-                <label className="label">Uwagi <span className="text-gray-400 font-normal">(opcjonalne)</span></label>
-                <input className="input" placeholder="Dodatkowe informacje" value={notes}
-                  onChange={e => setNotes(e.target.value)} />
-              </div>
-              <div>
-                <label className="label">Karta produktu / zdjęcie <span className="text-gray-400 font-normal">(opcjonalne)</span></label>
-                <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-2 px-4 py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-sm text-gray-600 cursor-pointer hover:border-gray-300 transition-colors flex-1">
-                    <Paperclip size={14} />
-                    {file ? file.name : 'Wybierz plik (JPG, PNG, PDF)'}
-                    <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden"
-                      onChange={e => setFile(e.target.files?.[0] ?? null)} />
-                  </label>
-                  {file && (
-                    <button type="button" onClick={() => { setFile(null); if (fileRef.current) fileRef.current.value = '' }}>
-                      <X size={16} className="text-gray-400 hover:text-gray-600" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-1">
-              <button type="submit" disabled={loading}
-                className={cn(
-                  'flex-1 py-4 rounded-xl text-sm font-bold transition-colors min-h-[56px]',
-                  loading ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-cyan-600 hover:bg-cyan-700 text-white'
-                )}>
-                {loading ? 'Zapisywanie…' : 'Zapisz wpis mycia'}
-              </button>
-              <button type="button" onClick={() => setExpanded(false)}
-                className="px-4 py-4 rounded-xl text-sm font-medium text-gray-600 border-2 border-gray-200 hover:bg-gray-50 min-h-[56px]">
-                Anuluj
+          {/* Agents */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-semibold text-gray-700">Środek czyszczący / dezynfekcyjny</p>
+              <button type="button"
+                onClick={() => { setShowAddAgent(!showAddAgent); setCustomAgentInput('') }}
+                className="text-xs text-cyan-600 hover:underline">
+                {showAddAgent ? 'Anuluj' : '+ Inny środek'}
               </button>
             </div>
-          </form>
-        )}
-      </div>
+            {showAddAgent && (
+              <div className="flex gap-2 mb-3">
+                <input
+                  className="input flex-1 text-sm" autoFocus
+                  placeholder="Wpisz nazwę środka"
+                  value={customAgentInput}
+                  onChange={e => setCustomAgentInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { e.preventDefault(); setAgent(customAgentInput.trim()); setShowAddAgent(false) }
+                  }}
+                />
+                <button type="button"
+                  onClick={() => { setAgent(customAgentInput.trim()); setShowAddAgent(false) }}
+                  className="px-3 py-2 bg-cyan-600 text-white text-sm rounded-lg hover:bg-cyan-700">
+                  Użyj
+                </button>
+              </div>
+            )}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {deptAgents.map(ag => (
+                <button key={ag} type="button" onClick={() => setAgent(ag)}
+                  className={cn(
+                    'px-3 py-2.5 rounded-xl border-2 text-xs font-medium transition-all min-h-[44px] text-left',
+                    agent === ag
+                      ? 'border-green-500 bg-green-50 text-green-800'
+                      : 'border-gray-100 bg-white text-gray-700 hover:border-green-200'
+                  )}>
+                  {ag}
+                </button>
+              ))}
+            </div>
+            {agent && !deptAgents.includes(agent) && (
+              <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700">
+                <Check size={13} className="text-blue-500" />
+                Wybrany: <strong>{agent}</strong>
+              </div>
+            )}
+          </div>
+
+          {/* Notes + file */}
+          <div className="space-y-3">
+            <div>
+              <label className="label">Uwagi <span className="text-gray-400 font-normal">(opcjonalne)</span></label>
+              <input className="input" placeholder="Dodatkowe informacje" value={notes}
+                onChange={e => setNotes(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Załącznik <span className="text-gray-400 font-normal">(opcjonalne)</span></label>
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-2 px-4 py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-sm text-gray-600 cursor-pointer hover:border-gray-300 transition-colors flex-1">
+                  <Paperclip size={14} />
+                  {file ? file.name : 'Wybierz plik (JPG, PNG, PDF)'}
+                  <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden"
+                    onChange={e => setFile(e.target.files?.[0] ?? null)} />
+                </label>
+                {file && (
+                  <button type="button" onClick={() => { setFile(null); if (fileRef.current) fileRef.current.value = '' }}>
+                    <X size={16} className="text-gray-400 hover:text-gray-600" />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={loading}
+            className={cn(
+              'w-full py-4 rounded-xl text-sm font-bold transition-colors min-h-[56px]',
+              loading ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-cyan-600 hover:bg-cyan-700 text-white'
+            )}
+          >
+            {loading ? 'Zapisywanie…' : 'Zapisz wpis mycia'}
+          </button>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!dept && logs.length === 0 && (
+        <div className="card border-dashed border-2 border-gray-200 text-center py-12">
+          <Droplets size={32} className="mx-auto text-gray-300 mb-3" />
+          <p className="text-gray-500 mb-1">Brak wpisów mycia.</p>
+          <p className="text-sm text-gray-400">Wybierz dział powyżej, aby dodać wpis.</p>
+        </div>
+      )}
 
       {/* Today's entries */}
       {todayLogs.length > 0 && (
@@ -303,8 +453,9 @@ export default function MyCiePage() {
           <p className="font-semibold text-gray-900 mb-3 text-sm">Dzisiaj ({todayLogs.length})</p>
           <div className="divide-y divide-gray-50">
             {todayLogs.map(log => (
-              <div key={log.id} className="py-3 flex items-start justify-between">
-                <div>
+              <div key={log.id} className="py-3 flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <DeptBadge area={log.area} />
                   <p className="font-semibold text-sm text-gray-900">{log.area}</p>
                   <p className="text-xs text-cyan-700 font-medium mt-0.5">{log.agent}</p>
                   {log.notes && <p className="text-xs text-gray-400 mt-0.5">{log.notes}</p>}
@@ -315,42 +466,57 @@ export default function MyCiePage() {
                     </a>
                   )}
                 </div>
-                <p className="text-xs text-gray-400 whitespace-nowrap ml-4 mt-0.5">{formatDateTime(log.cleaned_at)}</p>
+                <p className="text-xs text-gray-400 whitespace-nowrap mt-1">{formatDateTime(log.cleaned_at)}</p>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* History toggle */}
+      {/* History */}
       {logs.length > todayLogs.length && (
         <div className="card">
           <button type="button" onClick={() => setShowHistory(!showHistory)}
-            className="w-full flex items-center justify-between text-sm font-medium text-gray-600">
+            className="w-full flex items-center justify-between text-sm font-semibold text-gray-700">
             <span>Historia ({logs.length - todayLogs.length} wcześniejszych wpisów)</span>
-            {showHistory ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            {showHistory ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
           </button>
-          {showHistory && (
-            <div className="mt-3 divide-y divide-gray-50">
-              {logs.filter(l => new Date(l.cleaned_at) < new Date(todayStart)).map(log => (
-                <div key={log.id} className="py-2.5 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-800">{log.area} · <span className="text-gray-500">{log.agent}</span></p>
-                    {log.notes && <p className="text-xs text-gray-400">{log.notes}</p>}
-                  </div>
-                  <p className="text-xs text-gray-400 whitespace-nowrap ml-4">{formatDateTime(log.cleaned_at)}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
-      {logs.length === 0 && !expanded && (
-        <div className="card border-dashed border-2 border-gray-200 text-center py-12">
-          <Droplets size={32} className="mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-500 mb-1">Brak wpisów mycia.</p>
-          <p className="text-sm text-gray-400">Kliknij <strong>+ Dodaj wpis</strong> powyżej.</p>
+          {showHistory && (
+            <>
+              <div className="flex gap-2 mt-3 mb-3">
+                {(['all', 'kitchen_back', 'service_hall'] as HistFilter[]).map(f => (
+                  <button key={f} type="button" onClick={() => setHistFilter(f)}
+                    className={cn(
+                      'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+                      histFilter === f
+                        ? 'bg-green-600 text-white border-green-600'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                    )}>
+                    {f === 'all' ? 'Wszystkie' : f === 'kitchen_back' ? 'Kuchnia / zaplecze' : 'Sala'}
+                  </button>
+                ))}
+              </div>
+
+              {filteredHistory.length === 0 ? (
+                <p className="text-sm text-gray-400 py-4 text-center">Brak wpisów dla wybranego filtra.</p>
+              ) : (
+                <div className="divide-y divide-gray-50">
+                  {filteredHistory.map(log => (
+                    <div key={log.id} className="py-2.5 flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <DeptBadge area={log.area} />
+                        <p className="text-sm text-gray-800 font-medium">{log.area}</p>
+                        <p className="text-xs text-gray-500">{log.agent}</p>
+                        {log.notes && <p className="text-xs text-gray-400">{log.notes}</p>}
+                      </div>
+                      <p className="text-xs text-gray-400 whitespace-nowrap mt-1">{formatDateTime(log.cleaned_at)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
     </div>
