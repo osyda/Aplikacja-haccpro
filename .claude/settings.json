@@ -6,7 +6,7 @@
         "-y",
         "@supabase/mcp-server-supabase@latest",
         "--access-token",
-        "WKLEJ_TUTAJ_SWOJ_ACCESS_TOKEN"
+        "${SUPABASE_ACCESS_TOKEN}"
       ]
     }
   }
