@@ -6,30 +6,82 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { toast } from 'sonner'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [resetMode, setResetMode] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
   const router = useRouter()
+  const supabase = createClient()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
     setLoading(true)
-
-    const supabase = createClient()
     const { error } = await supabase.auth.signInWithPassword({ email, password })
-
     if (error) {
       setError('Nieprawidłowy email lub hasło')
       setLoading(false)
       return
     }
-
     router.push('/')
     router.refresh()
+  }
+
+  async function handleReset(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://app.haccpro.pl'
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${siteUrl}/set-password`,
+    })
+    setLoading(false)
+    if (error) {
+      toast.error('Błąd: ' + error.message)
+      return
+    }
+    setResetSent(true)
+  }
+
+  if (resetMode) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <button onClick={() => { setResetMode(false); setResetSent(false) }}
+            className="text-xs text-gray-400 hover:text-gray-600 mb-3 flex items-center gap-1">
+            ← Wróć do logowania
+          </button>
+          <h2 className="text-xl font-bold text-gray-900">Resetuj hasło</h2>
+          <p className="text-sm text-gray-500 mt-0.5">Wyślemy link do ustawienia nowego hasła</p>
+        </div>
+
+        {resetSent ? (
+          <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg px-4 py-3">
+            Gotowe! Sprawdź skrzynkę <strong>{email}</strong> i kliknij link w emailu.
+          </div>
+        ) : (
+          <form onSubmit={handleReset} className="space-y-4">
+            <Input
+              id="reset-email"
+              type="email"
+              label="Email"
+              placeholder="jan@restauracja.pl"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="email"
+            />
+            <Button type="submit" loading={loading} className="w-full" size="lg">
+              Wyślij link resetujący
+            </Button>
+          </form>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -66,6 +118,16 @@ export default function LoginPage() {
         required
         autoComplete="current-password"
       />
+
+      <div className="flex justify-end -mt-2">
+        <button
+          type="button"
+          onClick={() => setResetMode(true)}
+          className="text-xs text-gray-400 hover:text-brand-green transition-colors"
+        >
+          Nie pamiętasz hasła?
+        </button>
+      </div>
 
       <Button type="submit" loading={loading} className="w-full" size="lg">
         Zaloguj się
