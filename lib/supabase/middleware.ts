@@ -26,14 +26,15 @@ export async function updateSession(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   const url = request.nextUrl.clone()
-  const isAuthRoute = url.pathname.startsWith('/login') || url.pathname.startsWith('/register')
+  const isLoginRegister = url.pathname.startsWith('/login') || url.pathname.startsWith('/register')
+  const isAuthUtil = url.pathname.startsWith('/auth') // /auth/confirm, /auth/set-password etc.
 
-  if (!user && !isAuthRoute) {
+  if (!user && !isLoginRegister && !isAuthUtil) {
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  if (user && isAuthRoute) {
+  if (user && isLoginRegister) {
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)
   }

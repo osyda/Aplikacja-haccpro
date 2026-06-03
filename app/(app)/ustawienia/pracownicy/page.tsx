@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { ChevronLeft, Users, Crown, User, ChevronDown, ChevronUp, Check, Save, Loader2 } from 'lucide-react'
+import { ChevronLeft, Users, Crown, User, ChevronDown, ChevronUp, Check, Save, Loader2, Mail } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import {
@@ -207,6 +207,59 @@ function EmployeeEditor({
   )
 }
 
+function InviteForm() {
+  const [email, setEmail] = useState('')
+  const [sending, setSending] = useState(false)
+
+  async function handleInvite(e: React.FormEvent) {
+    e.preventDefault()
+    if (!email.trim()) return
+    setSending(true)
+    const res = await fetch('/api/invite-staff', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim() }),
+    })
+    setSending(false)
+    if (!res.ok) {
+      const err = await res.json()
+      toast.error('Błąd: ' + (err.error ?? 'Nieznany błąd'))
+      return
+    }
+    toast.success('Zaproszenie wysłane na ' + email.trim())
+    setEmail('')
+  }
+
+  return (
+    <div className="card space-y-3">
+      <div>
+        <p className="text-sm font-semibold text-gray-800">Zaproś pracownika</p>
+        <p className="text-xs text-gray-500 mt-0.5">
+          Pracownik otrzyma email z linkiem do ustawienia hasła i wejdzie do aplikacji jako pracownik.
+        </p>
+      </div>
+      <form onSubmit={handleInvite} className="flex gap-2">
+        <input
+          type="email"
+          className="input flex-1 text-sm"
+          placeholder="email@pracownika.pl"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          required
+        />
+        <button
+          type="submit"
+          disabled={sending}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-semibold transition-colors disabled:opacity-60 shrink-0"
+        >
+          {sending ? <Loader2 size={14} className="animate-spin" /> : null}
+          {sending ? 'Wysyłanie…' : 'Wyślij zaproszenie'}
+        </button>
+      </form>
+    </div>
+  )
+}
+
 export default function PracownicyPage() {
   const [staff, setStaff] = useState<StaffProfile[]>([])
   const [currentUserId, setCurrentUserId] = useState('')
@@ -309,10 +362,7 @@ export default function PracownicyPage() {
         </div>
       )}
 
-      <div className="card bg-gray-50 border-dashed">
-        <p className="text-sm font-medium text-gray-700 mb-1">Zaproś pracownika</p>
-        <p className="text-xs text-gray-500">Funkcja zapraszania przez email — dostępna w następnej aktualizacji.</p>
-      </div>
+      {isCurrentOwner && <InviteForm />}
     </div>
   )
 }
