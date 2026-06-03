@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2, AlertTriangle } from 'lucide-react'
 
-export default function ConfirmPage() {
+function ConfirmContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
@@ -25,7 +25,6 @@ export default function ConfirmPage() {
         ? new URLSearchParams(hash.replace('#', '')).get('type')
         : searchParams.get('type')
 
-      // If this is an invite link, check if someone is already logged in
       if (type === 'invite') {
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
@@ -131,5 +130,13 @@ export default function ConfirmPage() {
         <p className="text-sm text-gray-500">Weryfikowanie…</p>
       </div>
     </div>
+  )
+}
+
+export default function ConfirmPage() {
+  return (
+    <Suspense>
+      <ConfirmContent />
+    </Suspense>
   )
 }

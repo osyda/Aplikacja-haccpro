@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Loader2, KeyRound, AlertCircle } from 'lucide-react'
 
-export default function SetPasswordPage() {
+function SetPasswordContent() {
   const [name, setName] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -22,7 +22,6 @@ export default function SetPasswordPage() {
     async function init() {
       const hash = window.location.hash
 
-      // Error from Supabase in hash (expired link etc.)
       if (hash.includes('error=')) {
         const params = new URLSearchParams(hash.replace('#', ''))
         const code = params.get('error_code')
@@ -35,7 +34,6 @@ export default function SetPasswordPage() {
         return
       }
 
-      // Implicit flow: access_token in hash fragment
       if (hash.includes('access_token=')) {
         const params = new URLSearchParams(hash.replace('#', ''))
         const access_token = params.get('access_token') ?? ''
@@ -52,7 +50,6 @@ export default function SetPasswordPage() {
         return
       }
 
-      // PKCE flow: token_hash in URL params (fallback if user lands here directly)
       const token_hash = searchParams.get('token_hash')
       const type = searchParams.get('type') as 'recovery' | 'invite' | 'signup' | null
 
@@ -66,7 +63,6 @@ export default function SetPasswordPage() {
         return
       }
 
-      // Already authenticated — just show form
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         setChecking(false)
@@ -198,5 +194,13 @@ export default function SetPasswordPage() {
         {loading ? 'Zapisywanie…' : isRecovery ? 'Zmień hasło' : 'Ustaw hasło i wejdź do aplikacji'}
       </button>
     </form>
+  )
+}
+
+export default function SetPasswordPage() {
+  return (
+    <Suspense>
+      <SetPasswordContent />
+    </Suspense>
   )
 }
