@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createClient as createAdmin } from '@supabase/supabase-js'
 import type { AppPermissions } from '@/lib/permissions'
 
 export async function POST(req: NextRequest) {
@@ -37,17 +36,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Użytkownik nie należy do tej organizacji' }, { status: 403 })
     }
 
-    // Use admin client to bypass RLS (profiles_update_own only allows self-update)
-    const admin = createAdmin(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
-
-    const { error } = await admin
-      .from('profiles')
-      .update({ role: body.role, permissions: body.permissions })
-      .eq('id', body.targetUserId)
+    // Use SECURITY DEFINER RPC to bypass RLS (PostgREST admin client has issues)
+    const { error } = await supabase.rpc('update_staff_permissions', {
+      target_id: body.targetUserId,
+      new_role: body.role,
+      new_permissions: body.permissions,
+    })
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true })
