@@ -63,6 +63,22 @@ function DeviceCard({ device, locationId, onSaved }: DeviceCardProps) {
 
   const quickValues = guessQuickValues(device.min_ok, device.max_ok)
 
+  function getDefaultTemp(): string {
+    if (device.lastTemp !== null) return String(device.lastTemp)
+    return String(Math.round(((device.min_ok + device.max_ok) / 2) * 10) / 10)
+  }
+
+  function openCard() {
+    setTemp(getDefaultTemp())
+    setOpen(true)
+  }
+
+  function adjust(delta: number) {
+    const current = temp === '' ? parseFloat(getDefaultTemp()) : parseFloat(temp.replace(',', '.'))
+    if (isNaN(current)) return
+    setTemp(String(Math.round((current + delta) * 10) / 10))
+  }
+
   async function handleSave() {
     if (!hasTemp) { toast.error('Podaj temperaturę'); return }
     if (notesRequired && !notes.trim()) { toast.error('Temperatura poza normą — dodaj uwagę'); return }
@@ -118,7 +134,7 @@ function DeviceCard({ device, locationId, onSaved }: DeviceCardProps) {
 
       {!open ? (
         <button
-          onClick={() => setOpen(true)}
+          onClick={openCard}
           className="w-full mt-3 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl py-3 text-sm font-semibold transition-colors min-h-[52px]"
         >
           <Plus size={16} />
@@ -154,16 +170,30 @@ function DeviceCard({ device, locationId, onSaved }: DeviceCardProps) {
 
           <div>
             <label className="label">Temperatura (°C)</label>
-            <input
-              type="number"
-              step="0.1"
-              inputMode="decimal"
-              placeholder="wpisz lub wybierz powyżej"
-              className="input font-mono text-2xl text-center py-3 h-14"
-              value={temp}
-              onChange={e => setTemp(e.target.value)}
-              autoFocus
-            />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => adjust(-0.1)}
+                className="w-14 h-14 rounded-xl border-2 border-gray-200 text-3xl font-bold text-gray-600 hover:bg-gray-50 active:bg-gray-100 flex items-center justify-center shrink-0 select-none"
+              >
+                −
+              </button>
+              <input
+                type="number"
+                step="0.1"
+                inputMode="decimal"
+                className="input font-mono text-2xl text-center py-3 h-14 flex-1 min-w-0"
+                value={temp}
+                onChange={e => setTemp(e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={() => adjust(0.1)}
+                className="w-14 h-14 rounded-xl border-2 border-gray-200 text-3xl font-bold text-gray-600 hover:bg-gray-50 active:bg-gray-100 flex items-center justify-center shrink-0 select-none"
+              >
+                +
+              </button>
+            </div>
           </div>
 
           {hasTemp && (
