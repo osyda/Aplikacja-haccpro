@@ -36,6 +36,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .eq('org_id', profile?.org_id ?? '')
     .order('name')
 
+  // Staff can only see their own location — only owners/managers can switch
+  const isOwnerOrManager = profile?.role === 'owner' || profile?.role === 'manager'
+  const visibleLocations = isOwnerOrManager
+    ? (allLocations ?? [])
+    : (allLocations ?? []).filter(loc => loc.id === currentLocationId)
+
   return (
     <div className="min-h-screen bg-gray-50">
       <ToastProvider />
@@ -43,7 +49,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <Topbar
         locationName={locationName}
         userEmail={user.email}
-        locations={allLocations ?? []}
+        locations={visibleLocations}
         currentLocationId={currentLocationId}
       />
       <main className="lg:ml-64 pt-14 pb-16 lg:pb-0 min-h-screen">
