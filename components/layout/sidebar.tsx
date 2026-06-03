@@ -4,37 +4,32 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import {
-  Thermometer,
-  Truck,
-  Droplets,
-  GraduationCap,
-  AlertTriangle,
-  Bug,
-  FileText,
-  Clock,
-  Settings,
-  LayoutDashboard,
-  Apple,
-  Stethoscope,
+  Thermometer, Truck, Droplets, GraduationCap, AlertTriangle,
+  Bug, FileText, Clock, Settings, LayoutDashboard, Apple, Stethoscope,
 } from 'lucide-react'
+import type { AppPermissions } from '@/lib/permissions'
 
-const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/temperatury', label: 'Temperatury', icon: Thermometer },
-  { href: '/dostawy', label: 'Dostawy', icon: Truck },
-  { href: '/mycie', label: 'Mycie i dezynfekcja', icon: Droplets },
-  { href: '/szkolenia', label: 'Szkolenia', icon: GraduationCap },
-  { href: '/orzeczenia', label: 'Orzeczenia', icon: Stethoscope },
-  { href: '/niezgodnosci', label: 'Niezgodności', icon: AlertTriangle },
-  { href: '/ddd', label: 'Kontrola DDD', icon: Bug },
-  { href: '/alergeny', label: 'Alergeny', icon: Apple },
-  { href: '/raporty', label: 'Raporty PDF', icon: FileText },
-  { href: '/historia', label: 'Historia zmian', icon: Clock },
-  { href: '/ustawienia', label: 'Ustawienia', icon: Settings },
-]
+const NAV_ITEMS = [
+  { href: '/dashboard',     label: 'Dashboard',           icon: LayoutDashboard, permission: null },
+  { href: '/temperatury',   label: 'Temperatury',          icon: Thermometer,     permission: 'temperatures' },
+  { href: '/dostawy',       label: 'Dostawy',              icon: Truck,           permission: 'deliveries' },
+  { href: '/mycie',         label: 'Mycie i dezynfekcja',  icon: Droplets,        permission: 'cleaning' },
+  { href: '/niezgodnosci',  label: 'Niezgodności',         icon: AlertTriangle,   permission: 'nonconformities' },
+  { href: '/szkolenia',     label: 'Szkolenia',            icon: GraduationCap,   permission: 'training' },
+  { href: '/orzeczenia',    label: 'Orzeczenia',           icon: Stethoscope,     permission: 'certificates' },
+  { href: '/ddd',           label: 'Kontrola DDD',         icon: Bug,             permission: 'ddd' },
+  { href: '/alergeny',      label: 'Alergeny',             icon: Apple,           permission: 'allergens' },
+  { href: '/raporty',       label: 'Raporty PDF',          icon: FileText,        permission: 'reports' },
+  { href: '/historia',      label: 'Historia zmian',       icon: Clock,           permission: 'history' },
+  { href: '/ustawienia',    label: 'Ustawienia',           icon: Settings,        permission: 'settings' },
+] as const
 
-export function Sidebar() {
+export function Sidebar({ permissions }: { permissions: AppPermissions }) {
   const pathname = usePathname()
+
+  const visible = NAV_ITEMS.filter(item =>
+    item.permission === null || permissions[item.permission as keyof AppPermissions]
+  )
 
   return (
     <aside className="hidden lg:flex w-64 bg-brand-navy text-white flex-col h-full fixed left-0 top-0 z-30">
@@ -51,9 +46,9 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-        {navItems.map((item) => {
+        {visible.map((item) => {
           const Icon = item.icon
-          const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
+          const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
           return (
             <Link
               key={item.href}

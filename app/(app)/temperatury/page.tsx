@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { getTodayStart, isTemperatureOk } from '@/lib/utils'
+import { resolvePermissions } from '@/lib/permissions'
 import { TemperatureBoard } from './temperature-board'
+import type { AppPermissions } from '@/lib/permissions'
 
 export interface DeviceWithStatus {
   id: string
@@ -17,8 +19,9 @@ export default async function TemperaturyPage() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   const { data: profile } = await supabase
-    .from('profiles').select('location_id').eq('id', user!.id).single()
+    .from('profiles').select('location_id, role, permissions').eq('id', user!.id).single()
   const locationId = profile?.location_id ?? ''
+  const permissions = resolvePermissions(profile?.role, profile?.permissions as Partial<AppPermissions> | null)
   const todayStart = getTodayStart()
 
   const [devicesRes, logsRes] = await Promise.all([
@@ -68,5 +71,11 @@ export default async function TemperaturyPage() {
     })
   }
 
-  return <TemperatureBoard devices={deviceStatuses} locationId={locationId} />
+  return (
+    <TemperatureBoard
+      devices={deviceStatuses}
+      locationId={locationId}
+      canManageDevices={permissions.temperatures_manage_devices}
+    />
+  )
 }

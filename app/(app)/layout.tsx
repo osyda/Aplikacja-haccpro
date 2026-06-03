@@ -4,6 +4,8 @@ import { Sidebar } from '@/components/layout/sidebar'
 import { Topbar } from '@/components/layout/topbar'
 import { BottomNav } from '@/components/layout/bottom-nav'
 import { ToastProvider } from '@/components/ui/toast-provider'
+import { resolvePermissions } from '@/lib/permissions'
+import type { AppPermissions } from '@/lib/permissions'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient()
@@ -15,7 +17,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('location_id, org_id, locations(name)')
+    .select('location_id, org_id, role, permissions, locations(name)')
     .eq('id', user.id)
     .single()
 
@@ -23,7 +25,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const locationName = (locRaw && !Array.isArray(locRaw) ? (locRaw as { name: string }) : null)?.name ?? 'Mój lokal'
   const currentLocationId = profile?.location_id ?? ''
 
-  // Fetch all locations for this org so topbar can show switcher
+  const permissions = resolvePermissions(
+    profile?.role,
+    profile?.permissions as Partial<AppPermissions> | null,
+  )
+
   const { data: allLocations } = await supabase
     .from('locations')
     .select('id, name')
@@ -33,7 +39,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen bg-gray-50">
       <ToastProvider />
-      <Sidebar />
+      <Sidebar permissions={permissions} />
       <Topbar
         locationName={locationName}
         userEmail={user.email}
@@ -45,7 +51,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {children}
         </div>
       </main>
-      <BottomNav />
+      <BottomNav permissions={permissions} />
     </div>
   )
 }

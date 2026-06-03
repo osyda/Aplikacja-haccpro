@@ -302,9 +302,10 @@ function DeviceManager({ locationId, onChanged }: { locationId: string; onChange
 interface TemperatureBoardProps {
   devices: DeviceWithStatus[]
   locationId: string
+  canManageDevices?: boolean
 }
 
-export function TemperatureBoard({ devices, locationId }: TemperatureBoardProps) {
+export function TemperatureBoard({ devices, locationId, canManageDevices = true }: TemperatureBoardProps) {
   const [filter, setFilter] = useState<FilterType>('all')
   const [showManager, setShowManager] = useState(false)
   const router = useRouter()
@@ -344,20 +345,22 @@ export function TemperatureBoard({ devices, locationId }: TemperatureBoardProps)
           <h1 className="text-2xl font-bold text-gray-900">Temperatury</h1>
           <p className="text-sm text-gray-500 mt-0.5">Urządzenia chłodnicze</p>
         </div>
-        <button
-          onClick={() => setShowManager(!showManager)}
-          className={cn(
-            'flex items-center gap-1.5 text-sm px-3 py-2 border rounded-lg transition-colors',
-            showManager ? 'bg-blue-600 text-white border-blue-600' : 'text-gray-500 border-gray-200 hover:border-gray-300'
-          )}
-        >
-          <Settings size={14} />
-          <span className="hidden sm:inline">Zarządzaj</span>
-        </button>
+        {canManageDevices && (
+          <button
+            onClick={() => setShowManager(!showManager)}
+            className={cn(
+              'flex items-center gap-1.5 text-sm px-3 py-2 border rounded-lg transition-colors',
+              showManager ? 'bg-blue-600 text-white border-blue-600' : 'text-gray-500 border-gray-200 hover:border-gray-300'
+            )}
+          >
+            <Settings size={14} />
+            <span className="hidden sm:inline">Zarządzaj</span>
+          </button>
+        )}
       </div>
 
       {/* Device manager */}
-      {showManager && (
+      {showManager && canManageDevices && (
         <div className="card space-y-3">
           <p className="font-semibold text-gray-800 text-sm flex items-center gap-2">
             <Settings size={14} />
@@ -458,7 +461,11 @@ export function TemperatureBoard({ devices, locationId }: TemperatureBoardProps)
         <div className="card border-dashed border-2 border-gray-200 text-center py-12">
           <Thermometer size={32} className="mx-auto text-gray-300 mb-3" />
           <p className="text-gray-500 mb-1">Brak urządzeń</p>
-          <p className="text-sm text-gray-400">Kliknij <strong>Zarządzaj</strong> aby dodać lodówki i zamrażarki.</p>
+          <p className="text-sm text-gray-400">
+            {canManageDevices
+              ? <>Kliknij <strong>Zarządzaj</strong> aby dodać lodówki i zamrażarki.</>
+              : 'Brak skonfigurowanych urządzeń. Skontaktuj się z właścicielem lokalu.'}
+          </p>
         </div>
       ) : (
         <div className="card text-center py-8">

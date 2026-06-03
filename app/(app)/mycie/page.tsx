@@ -6,6 +6,8 @@ import { Droplets, Plus, Paperclip, X, ChevronDown, ChevronUp, Check } from 'luc
 import { formatDateTime } from '@/lib/utils'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { resolvePermissions } from '@/lib/permissions'
+import type { AppPermissions } from '@/lib/permissions'
 
 type Dept = 'kitchen_back' | 'service_hall'
 type HistFilter = 'all' | Dept
@@ -103,6 +105,7 @@ export default function MyCiePage() {
 
   const [histFilter, setHistFilter] = useState<HistFilter>('all')
   const [showHistory, setShowHistory] = useState(false)
+  const [canManageAreas, setCanManageAreas] = useState(true)
 
   const fileRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLDivElement>(null)
@@ -110,12 +113,14 @@ export default function MyCiePage() {
 
   async function getCtx() {
     const { data: { user } } = await supabase.auth.getUser()
-    const { data: profile } = await supabase.from('profiles').select('location_id').eq('id', user!.id).single()
-    return { locationId: profile?.location_id ?? '', userId: user!.id }
+    const { data: profile } = await supabase.from('profiles').select('location_id, role, permissions').eq('id', user!.id).single()
+    return { locationId: profile?.location_id ?? '', userId: user!.id, profile }
   }
 
   async function fetchData() {
-    const { locationId } = await getCtx()
+    const { locationId, profile } = await getCtx()
+    const perms = resolvePermissions(profile?.role, profile?.permissions as Partial<AppPermissions> | null)
+    setCanManageAreas(perms.cleaning_manage_areas)
     const [logsRes, locRes] = await Promise.all([
       supabase.from('cleaning_logs').select('id,area,agent,cleaned_at,notes,doc_url')
         .eq('location_id', locationId).order('cleaned_at', { ascending: false }).limit(100),
@@ -305,11 +310,13 @@ export default function MyCiePage() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-semibold text-gray-700">Obszar mycia</p>
-              <button type="button"
-                onClick={() => { setShowAddArea(!showAddArea); setCustomAreaInput('') }}
-                className="text-xs text-cyan-600 hover:underline">
-                {showAddArea ? 'Anuluj' : '+ Inny obszar'}
-              </button>
+              {canManageAreas && (
+                <button type="button"
+                  onClick={() => { setShowAddArea(!showAddArea); setCustomAreaInput('') }}
+                  className="text-xs text-cyan-600 hover:underline">
+                  {showAddArea ? 'Anuluj' : '+ Inny obszar'}
+                </button>
+              )}
             </div>
             {showAddArea && (
               <div className="flex gap-2 mb-3">
@@ -354,11 +361,13 @@ export default function MyCiePage() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-semibold text-gray-700">Środek czyszczący / dezynfekcyjny</p>
-              <button type="button"
-                onClick={() => { setShowAddAgent(!showAddAgent); setCustomAgentInput('') }}
-                className="text-xs text-cyan-600 hover:underline">
-                {showAddAgent ? 'Anuluj' : '+ Inny środek'}
-              </button>
+              {canManageAreas && (
+                <button type="button"
+                  onClick={() => { setShowAddAgent(!showAddAgent); setCustomAgentInput('') }}
+                  className="text-xs text-cyan-600 hover:underline">
+                  {showAddAgent ? 'Anuluj' : '+ Inny środek'}
+                </button>
+              )}
             </div>
             {showAddAgent && (
               <div className="flex gap-2 mb-3">
