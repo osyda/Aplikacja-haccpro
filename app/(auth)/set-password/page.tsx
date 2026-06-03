@@ -89,7 +89,15 @@ export default function SetPasswordPage() {
     if (authErr) { toast.error('Błąd: ' + authErr.message); setLoading(false); return }
 
     if (user && name.trim()) {
-      await supabase.from('profiles').update({ full_name: name.trim() }).eq('id', user.id)
+      const { error: profileErr } = await supabase
+        .from('profiles')
+        .update({ full_name: name.trim() })
+        .eq('id', user.id)
+      if (profileErr) {
+        toast.error('Błąd zapisu imienia: ' + profileErr.message)
+        setLoading(false)
+        return
+      }
     }
 
     toast.success(isRecovery ? 'Hasło zostało zmienione!' : 'Witaj w HACCPro!')

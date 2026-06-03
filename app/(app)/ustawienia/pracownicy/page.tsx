@@ -279,6 +279,7 @@ function InviteForm() {
         <p className="text-sm font-semibold text-gray-800">Zaproś pracownika</p>
         <p className="text-xs text-gray-500 mt-0.5">
           Pracownik otrzyma email z linkiem do ustawienia hasła.
+          Link musi być otwarty w przeglądarce gdzie pracownik <strong>nie jest zalogowany</strong> (np. tryb incognito).
         </p>
       </div>
       <form onSubmit={handleInvite} className="flex gap-2">
