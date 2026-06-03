@@ -51,7 +51,7 @@ export function resolvePermissions(
   role: string | null | undefined,
   stored: Partial<AppPermissions> | null | undefined,
 ): AppPermissions {
-  if (!role || role === 'owner' || role === 'manager') return OWNER_PERMISSIONS
+  if (role === 'owner' || role === 'manager') return OWNER_PERMISSIONS
   return { ...DEFAULT_STAFF_PERMISSIONS, ...(stored ?? {}) }
 }
 
