@@ -250,8 +250,9 @@ function EmployeeEditor({
   )
 }
 
-function InviteForm() {
+function InviteForm({ locations }: { locations: { id: string; name: string }[] }) {
   const [email, setEmail] = useState('')
+  const [locationId, setLocationId] = useState<string>(locations[0]?.id ?? '')
   const [sending, setSending] = useState(false)
 
   async function handleInvite(e: React.FormEvent) {
@@ -261,7 +262,7 @@ function InviteForm() {
     const res = await fetch('/api/invite-staff', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: email.trim() }),
+      body: JSON.stringify({ email: email.trim(), location_id: locationId || null }),
     })
     setSending(false)
     if (!res.ok) {
@@ -282,19 +283,34 @@ function InviteForm() {
           Link musi być otwarty w przeglądarce gdzie pracownik <strong>nie jest zalogowany</strong> (np. tryb incognito).
         </p>
       </div>
-      <form onSubmit={handleInvite} className="flex gap-2">
+      <form onSubmit={handleInvite} className="space-y-2">
         <input
           type="email"
-          className="input flex-1 text-sm"
+          className="input w-full text-sm"
           placeholder="email@pracownika.pl"
           value={email}
           onChange={e => setEmail(e.target.value)}
           required
         />
+        {locations.length > 0 && (
+          <div>
+            <label className="label">Lokal</label>
+            <select
+              className="input w-full text-sm"
+              value={locationId}
+              onChange={e => setLocationId(e.target.value)}
+            >
+              <option value="">— Bez przypisania do lokalu —</option>
+              {locations.map(loc => (
+                <option key={loc.id} value={loc.id}>{loc.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <button
           type="submit"
           disabled={sending}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-semibold transition-colors disabled:opacity-60 shrink-0"
+          className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-semibold transition-colors disabled:opacity-60"
         >
           {sending && <Loader2 size={14} className="animate-spin" />}
           {sending ? 'Wysyłanie…' : 'Wyślij zaproszenie'}
@@ -309,6 +325,7 @@ export default function PracownicyPage() {
   const [currentUserId, setCurrentUserId] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [currentUserRole, setCurrentUserRole] = useState<string>('staff')
+  const [locations, setLocations] = useState<{ id: string; name: string }[]>([])
   const supabase = createClient()
 
   useEffect(() => {
@@ -318,12 +335,20 @@ export default function PracownicyPage() {
       setCurrentUserId(user.id)
       const { data: profile } = await supabase.from('profiles').select('org_id, role').eq('id', user.id).single()
       setCurrentUserRole(profile?.role ?? 'staff')
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, full_name, email, role, permissions')
-        .eq('org_id', profile?.org_id ?? '')
-        .order('role')
-      setStaff(data ?? [])
+      const [{ data: staffData }, { data: locData }] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('id, full_name, email, role, permissions')
+          .eq('org_id', profile?.org_id ?? '')
+          .order('role'),
+        supabase
+          .from('locations')
+          .select('id, name')
+          .eq('org_id', profile?.org_id ?? '')
+          .order('name'),
+      ])
+      setStaff(staffData ?? [])
+      setLocations(locData ?? [])
     }
     load()
   }, [])
@@ -407,7 +432,7 @@ export default function PracownicyPage() {
         </div>
       )}
 
-      {isCurrentOwner && <InviteForm />}
+      {isCurrentOwner && <InviteForm locations={locations} />}
     </div>
   )
 }

@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 
 export async function POST(request: Request) {
-  const { email } = await request.json() as { email: string }
+  const { email, location_id } = await request.json() as { email: string; location_id?: string | null }
 
   if (!email?.trim()) {
     return NextResponse.json({ error: 'Podaj adres email' }, { status: 400 })
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   const { error } = await admin.auth.admin.inviteUserByEmail(email.trim(), {
     data: {
       invited_org_id: profile.org_id,
-      invited_location_id: profile.location_id ?? null,
+      invited_location_id: location_id ?? null,
       invited_role: 'staff',
     },
     redirectTo: `${siteUrl}/auth/confirm`,
