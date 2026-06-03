@@ -13,46 +13,60 @@ export default function SetPasswordPage() {
   const [loading, setLoading] = useState(false)
   const [checking, setChecking] = useState(true)
   const [hashError, setHashError] = useState<string | null>(null)
+  const [isRecovery, setIsRecovery] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
-    // Detect error in URL hash (Supabase implicit flow error)
-    const hash = typeof window !== 'undefined' ? window.location.hash : ''
+    const hash = window.location.hash
+
+    // Error from Supabase (expired link etc.)
     if (hash.includes('error=')) {
       const params = new URLSearchParams(hash.replace('#', ''))
       const code = params.get('error_code')
       setHashError(
         code === 'otp_expired'
-          ? 'Link zaproszenia wygasł. Poproś właściciela o wysłanie nowego zaproszenia.'
-          : 'Link jest nieprawidłowy. Poproś właściciela o wysłanie nowego zaproszenia.'
+          ? 'Link wygasł. Poproś właściciela o nowe zaproszenie lub skorzystaj z "Nie pamiętasz hasła?" na stronie logowania.'
+          : 'Link jest nieprawidłowy lub wygasł.'
       )
       setChecking(false)
       return
     }
 
-    // Wait for session — could come from hash (implicit flow) or existing cookie
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        setChecking(false)
-      }
-    })
+    // Hash contains access_token — explicitly set session
+    // (@supabase/ssr does NOT auto-detect hash fragments)
+    if (hash.includes('access_token=')) {
+      const params = new URLSearchParams(hash.replace('#', ''))
+      const access_token = params.get('access_token') ?? ''
+      const refresh_token = params.get('refresh_token') ?? ''
+      const type = params.get('type')
 
+      if (type === 'recovery') setIsRecovery(true)
+
+      supabase.auth.setSession({ access_token, refresh_token }).then(({ data, error }) => {
+        if (error || !data.session) {
+          setHashError('Link wygasł lub jest nieprawidłowy. Spróbuj ponownie.')
+          setChecking(false)
+        } else {
+          setChecking(false)
+        }
+      })
+      return
+    }
+
+    // No hash — check existing session
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
         setChecking(false)
-      } else if (!hash.includes('access_token')) {
-        // No hash token and no session — not a valid invite flow
+      } else {
         router.replace('/login')
       }
     })
-
-    return () => subscription.unsubscribe()
   }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!name.trim()) { toast.error('Podaj imię i nazwisko'); return }
+    if (!isRecovery && !name.trim()) { toast.error('Podaj imię i nazwisko'); return }
     if (password.length < 8) { toast.error('Hasło musi mieć minimum 8 znaków'); return }
     if (password !== confirm) { toast.error('Hasła nie są identyczne'); return }
 
@@ -60,11 +74,11 @@ export default function SetPasswordPage() {
     const { data: { user }, error: authErr } = await supabase.auth.updateUser({ password })
     if (authErr) { toast.error('Błąd: ' + authErr.message); setLoading(false); return }
 
-    if (user) {
+    if (user && name.trim()) {
       await supabase.from('profiles').update({ full_name: name.trim() }).eq('id', user.id)
     }
 
-    toast.success('Hasło ustawione — witaj w HACCPro!')
+    toast.success(isRecovery ? 'Hasło zostało zmienione!' : 'Witaj w HACCPro!')
     router.push('/dashboard')
   }
 
@@ -72,7 +86,7 @@ export default function SetPasswordPage() {
     return (
       <div className="flex flex-col items-center py-8 gap-3">
         <Loader2 size={24} className="animate-spin text-gray-400" />
-        <p className="text-sm text-gray-500">Weryfikowanie zaproszenia…</p>
+        <p className="text-sm text-gray-500">Weryfikowanie…</p>
       </div>
     )
   }
@@ -103,26 +117,31 @@ export default function SetPasswordPage() {
         <div className="inline-flex items-center justify-center w-12 h-12 bg-green-100 rounded-xl mb-3">
           <KeyRound size={22} className="text-green-600" />
         </div>
-        <h2 className="text-xl font-bold text-gray-900">Witaj w HACCPro!</h2>
+        <h2 className="text-xl font-bold text-gray-900">
+          {isRecovery ? 'Ustaw nowe hasło' : 'Witaj w HACCPro!'}
+        </h2>
         <p className="text-sm text-gray-500 mt-1">
-          Zaproszenie przyjęte. Ustaw hasło, aby móc logować się ponownie.
+          {isRecovery
+            ? 'Wpisz nowe hasło do swojego konta.'
+            : 'Zaproszenie przyjęte. Ustaw hasło aby logować się ponownie.'}
         </p>
       </div>
 
-      <div>
-        <label className="label">Imię i nazwisko</label>
-        <input
-          className="input"
-          placeholder="Jan Kowalski"
-          value={name}
-          onChange={e => setName(e.target.value)}
-          autoComplete="name"
-          required
-        />
-      </div>
+      {!isRecovery && (
+        <div>
+          <label className="label">Imię i nazwisko</label>
+          <input
+            className="input"
+            placeholder="Jan Kowalski"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            autoComplete="name"
+          />
+        </div>
+      )}
 
       <div>
-        <label className="label">Hasło</label>
+        <label className="label">Nowe hasło</label>
         <input
           className="input"
           type="password"
@@ -154,7 +173,7 @@ export default function SetPasswordPage() {
         className="w-full py-3 rounded-xl bg-brand-green hover:bg-green-700 text-white font-semibold text-sm transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
       >
         {loading && <Loader2 size={16} className="animate-spin" />}
-        {loading ? 'Zapisywanie…' : 'Ustaw hasło i wejdź do aplikacji'}
+        {loading ? 'Zapisywanie…' : isRecovery ? 'Zmień hasło' : 'Ustaw hasło i wejdź do aplikacji'}
       </button>
     </form>
   )
