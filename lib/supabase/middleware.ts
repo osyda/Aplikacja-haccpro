@@ -27,7 +27,7 @@ export async function updateSession(request: NextRequest) {
 
   const url = request.nextUrl.clone()
   const isLoginRegister = url.pathname.startsWith('/login') || url.pathname.startsWith('/register')
-  const isAuthUtil = url.pathname.startsWith('/auth') // /auth/confirm, /auth/set-password etc.
+  const isAuthUtil = url.pathname.startsWith('/auth') || url.pathname === '/set-password'
 
   if (!user && !isLoginRegister && !isAuthUtil) {
     url.pathname = '/login'

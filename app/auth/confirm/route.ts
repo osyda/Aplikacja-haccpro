@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
   const token_hash = searchParams.get('token_hash')
   const type = searchParams.get('type') as EmailOtpType | null
   const next = type === 'invite'
-    ? '/auth/set-password'
+    ? '/set-password'
     : (searchParams.get('next') ?? '/dashboard')
 
   if (token_hash && type) {

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { Loader2, KeyRound } from 'lucide-react'
+import { Loader2, KeyRound, AlertCircle } from 'lucide-react'
 
 export default function SetPasswordPage() {
   const [name, setName] = useState('')
@@ -12,17 +12,42 @@ export default function SetPasswordPage() {
   const [confirm, setConfirm] = useState('')
   const [loading, setLoading] = useState(false)
   const [checking, setChecking] = useState(true)
+  const [hashError, setHashError] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) {
-        router.replace('/login')
-      } else {
+    // Detect error in URL hash (Supabase implicit flow error)
+    const hash = typeof window !== 'undefined' ? window.location.hash : ''
+    if (hash.includes('error=')) {
+      const params = new URLSearchParams(hash.replace('#', ''))
+      const code = params.get('error_code')
+      setHashError(
+        code === 'otp_expired'
+          ? 'Link zaproszenia wygasł. Poproś właściciela o wysłanie nowego zaproszenia.'
+          : 'Link jest nieprawidłowy. Poproś właściciela o wysłanie nowego zaproszenia.'
+      )
+      setChecking(false)
+      return
+    }
+
+    // Wait for session — could come from hash (implicit flow) or existing cookie
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
         setChecking(false)
       }
     })
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        setChecking(false)
+      } else if (!hash.includes('access_token')) {
+        // No hash token and no session — not a valid invite flow
+        router.replace('/login')
+      }
+    })
+
+    return () => subscription.unsubscribe()
   }, [])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -45,8 +70,29 @@ export default function SetPasswordPage() {
 
   if (checking) {
     return (
-      <div className="flex justify-center py-8">
+      <div className="flex flex-col items-center py-8 gap-3">
         <Loader2 size={24} className="animate-spin text-gray-400" />
+        <p className="text-sm text-gray-500">Weryfikowanie zaproszenia…</p>
+      </div>
+    )
+  }
+
+  if (hashError) {
+    return (
+      <div className="space-y-5 text-center">
+        <div className="inline-flex items-center justify-center w-12 h-12 bg-red-100 rounded-xl mx-auto">
+          <AlertCircle size={22} className="text-red-500" />
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">Link wygasł</h2>
+          <p className="text-sm text-gray-500 mt-1">{hashError}</p>
+        </div>
+        <button
+          onClick={() => router.push('/login')}
+          className="w-full py-3 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+        >
+          Wróć do logowania
+        </button>
       </div>
     )
   }

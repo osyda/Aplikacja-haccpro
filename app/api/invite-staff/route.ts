@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       invited_location_id: profile.location_id ?? null,
       invited_role: 'staff',
     },
-    redirectTo: `${siteUrl}/auth/set-password`,
+    redirectTo: `${siteUrl}/set-password`,
   })
 
   if (error) {
