@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Loader2, KeyRound, AlertCircle } from 'lucide-react'
@@ -15,53 +15,67 @@ export default function SetPasswordPage() {
   const [hashError, setHashError] = useState<string | null>(null)
   const [isRecovery, setIsRecovery] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
 
   useEffect(() => {
-    const hash = window.location.hash
+    async function init() {
+      const hash = window.location.hash
 
-    // Error from Supabase (expired link etc.)
-    if (hash.includes('error=')) {
-      const params = new URLSearchParams(hash.replace('#', ''))
-      const code = params.get('error_code')
-      setHashError(
-        code === 'otp_expired'
-          ? 'Link wygasł. Poproś właściciela o nowe zaproszenie lub skorzystaj z "Nie pamiętasz hasła?" na stronie logowania.'
-          : 'Link jest nieprawidłowy lub wygasł.'
-      )
-      setChecking(false)
-      return
-    }
+      // Error from Supabase in hash (expired link etc.)
+      if (hash.includes('error=')) {
+        const params = new URLSearchParams(hash.replace('#', ''))
+        const code = params.get('error_code')
+        setHashError(
+          code === 'otp_expired'
+            ? 'Link wygasł. Poproś właściciela o nowe zaproszenie lub skorzystaj z "Nie pamiętasz hasła?" na stronie logowania.'
+            : 'Link jest nieprawidłowy lub wygasł.'
+        )
+        setChecking(false)
+        return
+      }
 
-    // Hash contains access_token — explicitly set session
-    // (@supabase/ssr does NOT auto-detect hash fragments)
-    if (hash.includes('access_token=')) {
-      const params = new URLSearchParams(hash.replace('#', ''))
-      const access_token = params.get('access_token') ?? ''
-      const refresh_token = params.get('refresh_token') ?? ''
-      const type = params.get('type')
+      // Implicit flow: access_token in hash fragment
+      if (hash.includes('access_token=')) {
+        const params = new URLSearchParams(hash.replace('#', ''))
+        const access_token = params.get('access_token') ?? ''
+        const refresh_token = params.get('refresh_token') ?? ''
+        const type = params.get('type')
 
-      if (type === 'recovery') setIsRecovery(true)
+        if (type === 'recovery') setIsRecovery(true)
 
-      supabase.auth.setSession({ access_token, refresh_token }).then(({ data, error }) => {
+        const { data, error } = await supabase.auth.setSession({ access_token, refresh_token })
         if (error || !data.session) {
           setHashError('Link wygasł lub jest nieprawidłowy. Spróbuj ponownie.')
-          setChecking(false)
-        } else {
-          setChecking(false)
         }
-      })
-      return
-    }
+        setChecking(false)
+        return
+      }
 
-    // No hash — check existing session
-    supabase.auth.getUser().then(({ data: { user } }) => {
+      // PKCE flow: token_hash in URL params (fallback if user lands here directly)
+      const token_hash = searchParams.get('token_hash')
+      const type = searchParams.get('type') as 'recovery' | 'invite' | 'signup' | null
+
+      if (token_hash && type) {
+        if (type === 'recovery') setIsRecovery(true)
+        const { error } = await supabase.auth.verifyOtp({ token_hash, type })
+        if (error) {
+          setHashError('Link wygasł lub jest nieprawidłowy. Spróbuj ponownie.')
+        }
+        setChecking(false)
+        return
+      }
+
+      // Already authenticated — just show form
+      const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         setChecking(false)
       } else {
         router.replace('/login')
       }
-    })
+    }
+
+    init()
   }, [])
 
   async function handleSubmit(e: React.FormEvent) {
