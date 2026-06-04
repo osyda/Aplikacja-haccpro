@@ -24,7 +24,7 @@ const NAV_ITEMS = [
   { href: '/ustawienia',    label: 'Ustawienia',           icon: Settings,        permission: 'settings' },
 ] as const
 
-export function Sidebar({ permissions }: { permissions: AppPermissions }) {
+export function Sidebar({ permissions, openNonconformities = 0 }: { permissions: AppPermissions; openNonconformities?: number }) {
   const pathname = usePathname()
 
   const visible = NAV_ITEMS.filter(item =>
@@ -49,6 +49,7 @@ export function Sidebar({ permissions }: { permissions: AppPermissions }) {
         {visible.map((item) => {
           const Icon = item.icon
           const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
+          const badge = item.href === '/niezgodnosci' && openNonconformities > 0 ? openNonconformities : null
           return (
             <Link
               key={item.href}
@@ -61,7 +62,12 @@ export function Sidebar({ permissions }: { permissions: AppPermissions }) {
               )}
             >
               <Icon size={16} />
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {badge && (
+                <span className="ml-auto min-w-[20px] h-5 px-1.5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                  {badge > 99 ? '99+' : badge}
+                </span>
+              )}
             </Link>
           )
         })}

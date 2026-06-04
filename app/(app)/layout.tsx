@@ -36,6 +36,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .eq('org_id', profile?.org_id ?? '')
     .order('name')
 
+  const { count: openNonconformities } = await supabase
+    .from('nonconformities')
+    .select('id', { count: 'exact', head: true })
+    .eq('location_id', currentLocationId)
+    .eq('status', 'open')
+
   // Staff can only see their own location — only owners/managers can switch
   const isOwnerOrManager = profile?.role === 'owner' || profile?.role === 'manager'
   const visibleLocations = isOwnerOrManager
@@ -45,7 +51,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen bg-gray-50">
       <ToastProvider />
-      <Sidebar permissions={permissions} />
+      <Sidebar permissions={permissions} openNonconformities={openNonconformities ?? 0} />
       <Topbar
         locationName={locationName}
         userEmail={user.email}
