@@ -96,12 +96,23 @@ function DeviceCard({ device, locationId, onSaved }: DeviceCardProps) {
       recorded_by: user!.id,
       notes: notes.trim() || null,
     })
+    if (error) { setSaving(false); toast.error('Błąd zapisu: ' + error.message); return }
+
+    if (outOfRange) {
+      await supabase.from('nonconformities').insert({
+        location_id: locationId,
+        source: 'temperature_alarm',
+        description: `Alarm temperatury: ${device.name} — zmierzono ${tempNum}°C (norma ${device.min_ok}–${device.max_ok}°C)`,
+        corrective_action: notes.trim() || null,
+        status: 'open',
+        reported_by: user!.id,
+      })
+      toast.error(`ALARM: ${device.name} ${tempNum}°C poza normą — zgłoszono niezgodność`)
+    } else {
+      toast.success(`Temperatura zapisana — ${device.name} ${tempNum}°C`)
+    }
+
     setSaving(false)
-    if (error) { toast.error('Błąd zapisu: ' + error.message); return }
-
-    if (inRange) toast.success(`Temperatura zapisana — ${device.name} ${tempNum}°C`)
-    else toast.error(`ALARM: ${device.name} ${tempNum}°C poza normą (${device.min_ok}–${device.max_ok}°C)`)
-
     setTemp('')
     setNotes('')
     setOpen(false)
