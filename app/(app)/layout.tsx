@@ -30,17 +30,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     profile?.permissions as Partial<AppPermissions> | null,
   )
 
-  const { data: allLocations } = await supabase
-    .from('locations')
-    .select('id, name')
-    .eq('org_id', profile?.org_id ?? '')
-    .order('name')
-
-  const { count: openNonconformities } = await supabase
-    .from('nonconformities')
-    .select('id', { count: 'exact', head: true })
-    .eq('location_id', currentLocationId)
-    .eq('status', 'open')
+  const [{ data: allLocations }, { count: openNonconformities }] = await Promise.all([
+    supabase.from('locations').select('id, name').eq('org_id', profile?.org_id ?? '').order('name'),
+    supabase.from('nonconformities').select('id', { count: 'exact', head: true }).eq('location_id', currentLocationId).eq('status', 'open'),
+  ])
 
   // Staff can only see their own location — only owners/managers can switch
   const isOwnerOrManager = profile?.role === 'owner' || profile?.role === 'manager'
