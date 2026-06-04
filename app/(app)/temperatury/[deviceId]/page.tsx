@@ -62,6 +62,12 @@ export default async function DeviceHistoryPage({ params, searchParams }: PagePr
     .order('measured_at', { ascending: false })
     .limit(500)
 
+  const authorIds = Array.from(new Set((logs ?? []).map((l: { recorded_by: string | null }) => l.recorded_by).filter(Boolean) as string[]))
+  const { data: authors } = authorIds.length > 0
+    ? await supabase.from('profiles').select('id, full_name').in('id', authorIds)
+    : { data: [] }
+  const authorMap: Record<string, string> = Object.fromEntries((authors ?? []).map((a: { id: string; full_name: string | null }) => [a.id, a.full_name ?? '']))
+
   const stats = logs && logs.length > 0 ? {
     avg: (logs.reduce((s: number, l: { temperature: number }) => s + l.temperature, 0) / logs.length).toFixed(1),
     min: Math.min(...logs.map((l: { temperature: number }) => l.temperature)),
@@ -114,13 +120,15 @@ export default async function DeviceHistoryPage({ params, searchParams }: PagePr
         <h2 className="font-semibold text-gray-900 mb-3">Tabela pomiarów ({logs?.length ?? 0})</h2>
         {logs && logs.length > 0 ? (
           <div className="divide-y divide-gray-50">
-            {logs.map((log: { id: string; temperature: number; min_ok: number; max_ok: number; measured_at: string; notes: string | null }) => {
+            {logs.map((log: { id: string; temperature: number; min_ok: number; max_ok: number; measured_at: string; notes: string | null; recorded_by: string | null }) => {
               const ok = isTemperatureOk(log.temperature, log.min_ok, log.max_ok)
+              const author = log.recorded_by ? (authorMap[log.recorded_by] ?? '') : ''
               return (
-                <div key={log.id} className="py-3 flex items-center justify-between gap-3">
-                  <div>
+                <div key={log.id} className="py-3 flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
                     <p className="text-sm text-gray-700">{formatDateTime(log.measured_at)}</p>
-                    {log.notes && <p className="text-xs text-gray-400 mt-0.5">{log.notes}</p>}
+                    {author && <p className="text-xs text-gray-500 mt-0.5">Zapisał/a: <span className="font-medium">{author}</span></p>}
+                    {log.notes && <p className="text-xs text-gray-400 mt-0.5 italic">{log.notes}</p>}
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <span className="font-mono font-semibold text-sm">{log.temperature}°C</span>

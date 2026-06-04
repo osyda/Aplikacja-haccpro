@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, MapPin, Plus } from 'lucide-react'
+import { ChevronLeft, MapPin, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { isOwnerRole } from '@/lib/permissions'
 import type { Location } from '@/types/database'
@@ -20,6 +20,7 @@ export default function LocalePage() {
   const [success, setSuccess] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [isOwner, setIsOwner] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
@@ -36,6 +37,19 @@ export default function LocalePage() {
   }
 
   useEffect(() => { fetchLocations() }, [])
+
+  async function handleDelete(id: string, name: string) {
+    if (!window.confirm(`Na pewno usunąć lokal "${name}"?\n\nTej operacji nie można cofnąć. Wszystkie dane powiązane z lokalem (logi, urządzenia, pracownicy) pozostaną w bazie.`)) return
+    setDeletingId(id)
+    const { error } = await supabase.from('locations').delete().eq('id', id)
+    setDeletingId(null)
+    if (error) {
+      toast.error('Błąd usuwania: ' + error.message)
+    } else {
+      toast.success(`Lokal "${name}" został usunięty.`)
+      fetchLocations()
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -88,13 +102,21 @@ export default function LocalePage() {
         <div className="card divide-y divide-gray-50">
           {locations.map((loc) => (
             <div key={loc.id} className="py-3 flex items-center gap-3">
-              <div className="p-2 bg-green-100 rounded-lg">
+              <div className="p-2 bg-green-100 rounded-lg shrink-0">
                 <MapPin size={16} className="text-brand-green" />
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm text-gray-900">{loc.name}</p>
                 <p className="text-xs text-gray-500">{loc.address}, {loc.city} • {loc.type}</p>
               </div>
+              <button
+                onClick={() => handleDelete(loc.id, loc.name)}
+                disabled={deletingId === loc.id || locations.length <= 1}
+                title={locations.length <= 1 ? 'Nie można usunąć jedynego lokalu' : 'Usuń lokal'}
+                className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+              >
+                <Trash2 size={15} />
+              </button>
             </div>
           ))}
         </div>

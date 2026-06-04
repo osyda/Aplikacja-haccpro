@@ -21,6 +21,8 @@ interface Nonconformity {
   location_id: string
 }
 
+type ProfilesMap = Record<string, string>
+
 function ResolveForm({ item, onResolved }: { item: Nonconformity; onResolved: () => void }) {
   const [comment, setComment] = useState('')
   const [saving, setSaving] = useState(false)
@@ -60,10 +62,12 @@ function ResolveForm({ item, onResolved }: { item: Nonconformity; onResolved: ()
   )
 }
 
-function NonconformityCard({ item, onChanged }: { item: Nonconformity; onChanged: () => void }) {
+function NonconformityCard({ item, profilesMap, onChanged }: { item: Nonconformity; profilesMap: ProfilesMap; onChanged: () => void }) {
   const [showResolve, setShowResolve] = useState(false)
   const isAlarm = item.source === 'temperature_alarm'
   const isOpen = item.status === 'open'
+  const reporterName = profilesMap[item.reported_by] ?? ''
+  const resolverName = item.resolved_by ? (profilesMap[item.resolved_by] ?? '') : ''
 
   return (
     <div className={cn(
@@ -106,9 +110,13 @@ function NonconformityCard({ item, onChanged }: { item: Nonconformity; onChanged
           {item.resolve_comment && (
             <p className="text-xs text-green-700 mt-1 bg-green-50 px-2 py-1 rounded-lg border border-green-100">
               <span className="font-medium">Działanie korygujące:</span> {item.resolve_comment}
+              {resolverName && <span className="text-green-600"> — {resolverName}</span>}
             </p>
           )}
-          <p className="text-xs text-gray-400 mt-1.5">{formatDateTime(item.created_at)}</p>
+          <p className="text-xs text-gray-400 mt-1.5">
+            {formatDateTime(item.created_at)}
+            {reporterName && <span className="ml-2 font-medium text-gray-500">· {reporterName}</span>}
+          </p>
         </div>
       </div>
 
@@ -132,6 +140,7 @@ function NonconformityCard({ item, onChanged }: { item: Nonconformity; onChanged
 
 export default function NiezgodnosciPage() {
   const [items, setItems] = useState<Nonconformity[]>([])
+  const [profilesMap, setProfilesMap] = useState<ProfilesMap>({})
   const [expandedForm, setExpandedForm] = useState(false)
   const [form, setForm] = useState({ description: '', corrective_action: '' })
   const [loading, setLoading] = useState(false)
@@ -146,7 +155,17 @@ export default function NiezgodnosciPage() {
       .select('*')
       .eq('location_id', profile?.location_id ?? '')
       .order('created_at', { ascending: false })
-    setItems(data ?? [])
+    const rows = data ?? []
+    setItems(rows)
+
+    const ids = Array.from(new Set([
+      ...rows.map((r: Nonconformity) => r.reported_by),
+      ...(rows.map((r: Nonconformity) => r.resolved_by).filter(Boolean) as string[]),
+    ]))
+    if (ids.length > 0) {
+      const { data: pData } = await supabase.from('profiles').select('id, full_name').in('id', ids)
+      setProfilesMap(Object.fromEntries((pData ?? []).map((p: { id: string; full_name: string | null }) => [p.id, p.full_name ?? ''])))
+    }
   }
 
   useEffect(() => { fetchItems() }, [])
@@ -237,7 +256,7 @@ export default function NiezgodnosciPage() {
             Otwarte ({open.length})
           </h2>
           {open.map(item => (
-            <NonconformityCard key={item.id} item={item} onChanged={fetchItems} />
+            <NonconformityCard key={item.id} item={item} profilesMap={profilesMap} onChanged={fetchItems} />
           ))}
         </div>
       )}
@@ -254,7 +273,7 @@ export default function NiezgodnosciPage() {
             {showResolved ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
           </button>
           {showResolved && resolved.map(item => (
-            <NonconformityCard key={item.id} item={item} onChanged={fetchItems} />
+            <NonconformityCard key={item.id} item={item} profilesMap={profilesMap} onChanged={fetchItems} />
           ))}
         </div>
       )}
