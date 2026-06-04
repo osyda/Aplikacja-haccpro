@@ -81,6 +81,24 @@ export async function GET(request: NextRequest) {
 
     const data = await fetchModuleData(supabase, locationId, moduleIds, year, month)
 
+    // Collect all recorded_by UUIDs across modules and resolve full names
+    const allIds = new Set<string>()
+    type WithRecordedBy = { recorded_by?: string | null }
+    type WithReportedBy = { reported_by?: string | null; resolved_by?: string | null }
+    ;(data.temperatury as WithRecordedBy[] ?? []).forEach(r => { if (r.recorded_by) allIds.add(r.recorded_by) })
+    ;(data.dostawy as WithRecordedBy[] ?? []).forEach(r => { if (r.recorded_by) allIds.add(r.recorded_by) })
+    ;(data.mycie as WithRecordedBy[] ?? []).forEach(r => { if (r.recorded_by) allIds.add(r.recorded_by) })
+    ;(data.niezgodnosci as WithReportedBy[] ?? []).forEach(r => {
+      if (r.reported_by) allIds.add(r.reported_by)
+      if (r.resolved_by) allIds.add(r.resolved_by)
+    })
+    const idArr = Array.from(allIds)
+    const profilesMap: Record<string, string> = {}
+    if (idArr.length > 0) {
+      const { data: pData } = await supabase.from('profiles').select('id, full_name').in('id', idArr)
+      ;(pData ?? []).forEach((p: { id: string; full_name: string | null }) => { profilesMap[p.id] = p.full_name ?? '' })
+    }
+
     const element = createElement(HacppPdfDocument, {
       monthName: MONTH_NAMES[month],
       year,
@@ -88,6 +106,7 @@ export async function GET(request: NextRequest) {
       locationAddress: location ? `${location.address}, ${location.city}` : '',
       moduleIds,
       data,
+      profilesMap,
     })
 
     const buffer = Buffer.from(await renderToBuffer(element as any))

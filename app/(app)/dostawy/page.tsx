@@ -29,7 +29,13 @@ export default async function DostawyPage() {
   ])
 
   const logs = logsRes.data ?? []
-  const suppMap = Object.fromEntries((suppliersRes.data ?? []).map(s => [s.alias, s]))
+  const suppMap = Object.fromEntries((suppliersRes.data ?? []).map((s: { alias: string; full_name: string | null; nip: string | null }) => [s.alias, s]))
+
+  const authorIds = Array.from(new Set(logs.map((l: { recorded_by: string | null }) => l.recorded_by).filter(Boolean) as string[]))
+  const { data: authors } = authorIds.length > 0
+    ? await supabase.from('profiles').select('id, full_name').in('id', authorIds)
+    : { data: [] }
+  const usersMap: Record<string, string> = Object.fromEntries((authors ?? []).map((a: { id: string; full_name: string | null }) => [a.id, a.full_name ?? '']))
 
   return (
     <div className="space-y-6">
@@ -44,7 +50,7 @@ export default async function DostawyPage() {
         </Link>
       </div>
 
-      <DeliveryList logs={logs} suppMap={suppMap} />
+      <DeliveryList logs={logs} suppMap={suppMap} usersMap={usersMap} />
     </div>
   )
 }

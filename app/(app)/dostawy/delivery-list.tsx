@@ -27,11 +27,13 @@ interface DeliveryLog {
   notes: string | null
   photo_url: string | null
   received_at: string
+  recorded_by: string | null
 }
 
 interface Props {
   logs: DeliveryLog[]
   suppMap: Record<string, Supplier>
+  usersMap: Record<string, string>
 }
 
 const CAT_META: Record<string, { label: string; color: string; bg: string; Icon: React.ElementType }> = {
@@ -160,7 +162,7 @@ function StatusBadge({ log }: { log: DeliveryLog }) {
   )
 }
 
-function DetailModal({ log, supp, onClose }: { log: DeliveryLog; supp: Supplier | undefined; onClose: () => void }) {
+function DetailModal({ log, supp, author, onClose }: { log: DeliveryLog; supp: Supplier | undefined; author?: string; onClose: () => void }) {
   const cats = getCats(log)
   const tempWarn = isTempWarn(log.temp_at_delivery, cats)
 
@@ -247,6 +249,14 @@ function DetailModal({ log, supp, onClose }: { log: DeliveryLog; supp: Supplier 
             </div>
           </section>
 
+          {/* Author */}
+          {author && (
+            <section>
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Zapisał/a</p>
+              <p className="text-sm font-semibold text-gray-900">{author}</p>
+            </section>
+          )}
+
           {/* Notes */}
           {log.notes && (
             <section>
@@ -281,7 +291,7 @@ function DetailModal({ log, supp, onClose }: { log: DeliveryLog; supp: Supplier 
   )
 }
 
-function DeliveryCard({ log, supp, onClick }: { log: DeliveryLog; supp: Supplier | undefined; onClick: () => void }) {
+function DeliveryCard({ log, supp, author, onClick }: { log: DeliveryLog; supp: Supplier | undefined; author?: string; onClick: () => void }) {
   const cats = getCats(log)
   const tempWarn = isTempWarn(log.temp_at_delivery, cats)
 
@@ -347,6 +357,7 @@ function DeliveryCard({ log, supp, onClick }: { log: DeliveryLog; supp: Supplier
           )}
 
           <div className="flex items-center gap-2 ml-auto">
+            {author && <p className="text-xs text-gray-500 hidden sm:block">{author}</p>}
             <p className="text-xs text-gray-400">{formatDateTime(log.received_at)}</p>
             {log.photo_url && (
               <a
@@ -367,7 +378,7 @@ function DeliveryCard({ log, supp, onClick }: { log: DeliveryLog; supp: Supplier
   )
 }
 
-export function DeliveryList({ logs, suppMap }: Props) {
+export function DeliveryList({ logs, suppMap, usersMap }: Props) {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<FilterType>('all')
   const [detail, setDetail] = useState<DeliveryLog | null>(null)
@@ -466,6 +477,7 @@ export function DeliveryList({ logs, suppMap }: Props) {
               key={log.id}
               log={log}
               supp={suppMap[log.supplier]}
+              author={log.recorded_by ? usersMap[log.recorded_by] : undefined}
               onClick={() => setDetail(log)}
             />
           ))}
@@ -496,6 +508,7 @@ export function DeliveryList({ logs, suppMap }: Props) {
         <DetailModal
           log={detail}
           supp={suppMap[detail.supplier]}
+          author={detail.recorded_by ? usersMap[detail.recorded_by] : undefined}
           onClose={() => setDetail(null)}
         />
       )}

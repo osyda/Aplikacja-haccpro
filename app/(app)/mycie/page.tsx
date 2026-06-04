@@ -84,12 +84,13 @@ function getTodayStart() {
   const d = new Date(); d.setHours(0, 0, 0, 0); return d.toISOString()
 }
 
-interface Log { id: string; area: string; agent: string; cleaned_at: string; notes: string | null; doc_url: string | null }
+interface Log { id: string; area: string; agent: string; cleaned_at: string; notes: string | null; doc_url: string | null; recorded_by: string | null }
 
 export default function MyCiePage() {
   const [logs, setLogs] = useState<Log[]>([])
   const [customAreas, setCustomAreas] = useState<string[]>([])
   const [customAgents, setCustomAgents] = useState<string[]>([])
+  const [usersMap, setUsersMap] = useState<Record<string, string>>({})
 
   const [dept, setDept] = useState<Dept | null>(null)
   const [area, setArea] = useState('')
@@ -122,13 +123,20 @@ export default function MyCiePage() {
     const perms = resolvePermissions(profile?.role, profile?.permissions as Partial<AppPermissions> | null)
     setCanManageAreas(perms.cleaning_manage_areas)
     const [logsRes, locRes] = await Promise.all([
-      supabase.from('cleaning_logs').select('id,area,agent,cleaned_at,notes,doc_url')
+      supabase.from('cleaning_logs').select('id,area,agent,cleaned_at,notes,doc_url,recorded_by')
         .eq('location_id', locationId).order('cleaned_at', { ascending: false }).limit(100),
       supabase.from('locations').select('cleaning_areas,cleaning_agents').eq('id', locationId).single(),
     ])
-    setLogs(logsRes.data ?? [])
+    const rows = logsRes.data ?? []
+    setLogs(rows)
     setCustomAreas(locRes.data?.cleaning_areas ?? [])
     setCustomAgents(locRes.data?.cleaning_agents ?? [])
+
+    const ids = Array.from(new Set(rows.map((r: Log) => r.recorded_by).filter(Boolean) as string[]))
+    if (ids.length > 0) {
+      const { data: pData } = await supabase.from('profiles').select('id, full_name').in('id', ids)
+      setUsersMap(Object.fromEntries((pData ?? []).map((p: { id: string; full_name: string | null }) => [p.id, p.full_name ?? ''])))
+    }
   }
 
   useEffect(() => { fetchData() }, [])
@@ -474,6 +482,9 @@ export default function MyCiePage() {
                       <Paperclip size={10} /> Załącznik
                     </a>
                   )}
+                  {log.recorded_by && usersMap[log.recorded_by] && (
+                    <p className="text-xs text-gray-500 mt-0.5">Zapisał/a: <span className="font-medium">{usersMap[log.recorded_by]}</span></p>
+                  )}
                 </div>
                 <p className="text-xs text-gray-400 whitespace-nowrap mt-1">{formatDateTime(log.cleaned_at)}</p>
               </div>
@@ -518,6 +529,9 @@ export default function MyCiePage() {
                         <p className="text-sm text-gray-800 font-medium">{log.area}</p>
                         <p className="text-xs text-gray-500">{log.agent}</p>
                         {log.notes && <p className="text-xs text-gray-400">{log.notes}</p>}
+                        {log.recorded_by && usersMap[log.recorded_by] && (
+                          <p className="text-xs text-gray-400">Zapisał/a: <span className="font-medium">{usersMap[log.recorded_by]}</span></p>
+                        )}
                       </div>
                       <p className="text-xs text-gray-400 whitespace-nowrap mt-1">{formatDateTime(log.cleaned_at)}</p>
                     </div>
