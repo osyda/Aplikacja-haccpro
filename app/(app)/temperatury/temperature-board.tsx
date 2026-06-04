@@ -54,12 +54,30 @@ function DeviceCard({ device, locationId, onSaved }: DeviceCardProps) {
 
   const tempNum = temp === '' ? null : parseFloat(temp.replace(',', '.'))
   const hasTemp = tempNum !== null && !isNaN(tempNum)
-  const inRange = hasTemp && tempNum >= device.min_ok && tempNum <= device.max_ok
+  const normMin = Math.min(device.min_ok, device.max_ok)
+  const normMax = Math.max(device.min_ok, device.max_ok)
+  const inRange = hasTemp && tempNum >= normMin && tempNum <= normMax
   const outOfRange = hasTemp && !inRange
   const isUnusual = hasTemp && (tempNum < -40 || tempNum > 100)
   const notesRequired = outOfRange
 
   const quickValues = guessQuickValues(device.min_ok, device.max_ok)
+
+  function getDefaultTemp(): string {
+    if (device.lastTemp !== null) return String(device.lastTemp)
+    return String(Math.round(((device.min_ok + device.max_ok) / 2) * 10) / 10)
+  }
+
+  function openCard() {
+    setTemp(getDefaultTemp())
+    setOpen(true)
+  }
+
+  function adjust(delta: number) {
+    const current = temp === '' ? parseFloat(getDefaultTemp()) : parseFloat(temp.replace(',', '.'))
+    if (isNaN(current)) return
+    setTemp(String(Math.round((current + delta) * 10) / 10))
+  }
 
   async function handleSave() {
     if (!hasTemp) { toast.error('Podaj temperaturę'); return }
@@ -78,12 +96,23 @@ function DeviceCard({ device, locationId, onSaved }: DeviceCardProps) {
       recorded_by: user!.id,
       notes: notes.trim() || null,
     })
+    if (error) { setSaving(false); toast.error('Błąd zapisu: ' + error.message); return }
+
+    if (outOfRange) {
+      await supabase.from('nonconformities').insert({
+        location_id: locationId,
+        source: 'temperature_alarm',
+        description: `Alarm temperatury: ${device.name} — zmierzono ${tempNum}°C (norma ${device.min_ok}–${device.max_ok}°C)`,
+        corrective_action: notes.trim() || null,
+        status: 'open',
+        reported_by: user!.id,
+      })
+      toast.error(`ALARM: ${device.name} ${tempNum}°C poza normą — zgłoszono niezgodność`)
+    } else {
+      toast.success(`Temperatura zapisana — ${device.name} ${tempNum}°C`)
+    }
+
     setSaving(false)
-    if (error) { toast.error('Błąd zapisu: ' + error.message); return }
-
-    if (inRange) toast.success(`Temperatura zapisana — ${device.name} ${tempNum}°C`)
-    else toast.error(`ALARM: ${device.name} ${tempNum}°C poza normą (${device.min_ok}–${device.max_ok}°C)`)
-
     setTemp('')
     setNotes('')
     setOpen(false)
@@ -116,7 +145,7 @@ function DeviceCard({ device, locationId, onSaved }: DeviceCardProps) {
 
       {!open ? (
         <button
-          onClick={() => setOpen(true)}
+          onClick={openCard}
           className="w-full mt-3 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl py-3 text-sm font-semibold transition-colors min-h-[52px]"
         >
           <Plus size={16} />
@@ -152,16 +181,30 @@ function DeviceCard({ device, locationId, onSaved }: DeviceCardProps) {
 
           <div>
             <label className="label">Temperatura (°C)</label>
-            <input
-              type="number"
-              step="0.1"
-              inputMode="decimal"
-              placeholder="wpisz lub wybierz powyżej"
-              className="input font-mono text-2xl text-center py-3 h-14"
-              value={temp}
-              onChange={e => setTemp(e.target.value)}
-              autoFocus
-            />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => adjust(-0.1)}
+                className="w-14 h-14 rounded-xl border-2 border-gray-200 text-3xl font-bold text-gray-600 hover:bg-gray-50 active:bg-gray-100 flex items-center justify-center shrink-0 select-none"
+              >
+                −
+              </button>
+              <input
+                type="number"
+                step="0.1"
+                inputMode="decimal"
+                className="input font-mono text-2xl text-center py-3 h-14 flex-1 min-w-0"
+                value={temp}
+                onChange={e => setTemp(e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={() => adjust(0.1)}
+                className="w-14 h-14 rounded-xl border-2 border-gray-200 text-3xl font-bold text-gray-600 hover:bg-gray-50 active:bg-gray-100 flex items-center justify-center shrink-0 select-none"
+              >
+                +
+              </button>
+            </div>
           </div>
 
           {hasTemp && (
@@ -300,9 +343,10 @@ function DeviceManager({ locationId, onChanged }: { locationId: string; onChange
 interface TemperatureBoardProps {
   devices: DeviceWithStatus[]
   locationId: string
+  canManageDevices?: boolean
 }
 
-export function TemperatureBoard({ devices, locationId }: TemperatureBoardProps) {
+export function TemperatureBoard({ devices, locationId, canManageDevices = true }: TemperatureBoardProps) {
   const [filter, setFilter] = useState<FilterType>('all')
   const [showManager, setShowManager] = useState(false)
   const router = useRouter()
@@ -342,20 +386,22 @@ export function TemperatureBoard({ devices, locationId }: TemperatureBoardProps)
           <h1 className="text-2xl font-bold text-gray-900">Temperatury</h1>
           <p className="text-sm text-gray-500 mt-0.5">Urządzenia chłodnicze</p>
         </div>
-        <button
-          onClick={() => setShowManager(!showManager)}
-          className={cn(
-            'flex items-center gap-1.5 text-sm px-3 py-2 border rounded-lg transition-colors',
-            showManager ? 'bg-blue-600 text-white border-blue-600' : 'text-gray-500 border-gray-200 hover:border-gray-300'
-          )}
-        >
-          <Settings size={14} />
-          <span className="hidden sm:inline">Zarządzaj</span>
-        </button>
+        {canManageDevices && (
+          <button
+            onClick={() => setShowManager(!showManager)}
+            className={cn(
+              'flex items-center gap-1.5 text-sm px-3 py-2 border rounded-lg transition-colors',
+              showManager ? 'bg-blue-600 text-white border-blue-600' : 'text-gray-500 border-gray-200 hover:border-gray-300'
+            )}
+          >
+            <Settings size={14} />
+            <span className="hidden sm:inline">Zarządzaj</span>
+          </button>
+        )}
       </div>
 
       {/* Device manager */}
-      {showManager && (
+      {showManager && canManageDevices && (
         <div className="card space-y-3">
           <p className="font-semibold text-gray-800 text-sm flex items-center gap-2">
             <Settings size={14} />
@@ -456,7 +502,11 @@ export function TemperatureBoard({ devices, locationId }: TemperatureBoardProps)
         <div className="card border-dashed border-2 border-gray-200 text-center py-12">
           <Thermometer size={32} className="mx-auto text-gray-300 mb-3" />
           <p className="text-gray-500 mb-1">Brak urządzeń</p>
-          <p className="text-sm text-gray-400">Kliknij <strong>Zarządzaj</strong> aby dodać lodówki i zamrażarki.</p>
+          <p className="text-sm text-gray-400">
+            {canManageDevices
+              ? <>Kliknij <strong>Zarządzaj</strong> aby dodać lodówki i zamrażarki.</>
+              : 'Brak skonfigurowanych urządzeń. Skontaktuj się z właścicielem lokalu.'}
+          </p>
         </div>
       ) : (
         <div className="card text-center py-8">

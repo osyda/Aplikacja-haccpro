@@ -4,9 +4,10 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { ChevronLeft, Paperclip, X, Thermometer, Building2, Plus, CheckCircle2, AlertCircle, ChevronRight } from 'lucide-react'
+import { ChevronLeft, Paperclip, X, Thermometer, Building2, Plus, CheckCircle2, AlertCircle, ChevronRight, Camera, Sparkles, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import type { ScanResult } from '@/app/api/scan-invoice/route'
 
 const DELIVERY_CATEGORIES = [
   { id: 'mieso',    label: 'Mięso świeże',       requiresTemp: true,  tempHint: '0 – 7°C',  activeClass: 'border-red-400 bg-red-50 text-red-700' },
@@ -87,6 +88,9 @@ export default function NowaDostawaPage() {
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const scanRef = useRef<HTMLInputElement>(null)
+  const [scanning, setScanning] = useState(false)
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
@@ -108,6 +112,37 @@ export default function NowaDostawaPage() {
     const { data: { user } } = await supabase.auth.getUser()
     const { data: profile } = await supabase.from('profiles').select('location_id').eq('id', user!.id).single()
     return { locationId: profile?.location_id ?? '', userId: user!.id }
+  }
+
+  async function handleScan(file: File) {
+    setScanning(true)
+    setScanResult(null)
+    setFile(file) // pre-fill step 4 attachment with the scanned file
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/scan-invoice', { method: 'POST', body: fd })
+      const json = await res.json()
+      if (!res.ok) { toast.error(json.error ?? 'Błąd skanowania'); return }
+      const result = json as ScanResult
+      setScanResult(result)
+      // Pre-fill form
+      setForm(p => ({
+        ...p,
+        supplier: result.supplier ?? p.supplier,
+        product: result.product ?? p.product,
+        quantity: result.quantity ?? p.quantity,
+        expiry_date: result.expiry_date ?? p.expiry_date,
+        temp_at_delivery: result.temp_at_delivery != null ? String(result.temp_at_delivery) : p.temp_at_delivery,
+        categories: result.categories?.length ? result.categories : p.categories,
+        notes: result.notes ?? p.notes,
+      }))
+      toast.success('Faktura zeskanowana! Sprawdź i uzupełnij dane.')
+    } catch (e) {
+      toast.error('Błąd połączenia: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setScanning(false)
+    }
   }
 
   async function saveNewSupplier() {
@@ -191,6 +226,78 @@ export default function NowaDostawaPage() {
           <h1 className="text-xl font-bold text-gray-900">Nowa dostawa</h1>
           <p className="text-xs text-gray-400 mt-0.5">Krok {step} z 4</p>
         </div>
+      </div>
+
+      {/* ── AI Scan panel ── */}
+      <div className={cn(
+        'rounded-2xl border-2 p-4 transition-all',
+        scanResult ? 'border-purple-200 bg-purple-50' : 'border-dashed border-gray-200 bg-white'
+      )}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-purple-100 rounded-lg">
+              <Sparkles size={15} className="text-purple-600" />
+            </div>
+            <span className="text-sm font-bold text-gray-800">Skanuj fakturę AI</span>
+            <span className="text-xs text-gray-400 font-normal">opcjonalnie</span>
+          </div>
+          {scanResult && (
+            <button type="button" onClick={() => { setScanResult(null); if (scanRef.current) scanRef.current.value = '' }}
+              className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
+              <RotateCcw size={12} /> Skanuj ponownie
+            </button>
+          )}
+        </div>
+
+        {!scanResult ? (
+          <label className={cn(
+            'flex items-center justify-center gap-3 w-full py-4 rounded-xl border-2 border-dashed cursor-pointer transition-all min-h-[64px]',
+            scanning
+              ? 'border-purple-300 bg-purple-50 cursor-wait'
+              : 'border-gray-200 hover:border-purple-300 hover:bg-purple-50'
+          )}>
+            {scanning ? (
+              <>
+                <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm font-medium text-purple-700">Analizowanie faktury…</span>
+              </>
+            ) : (
+              <>
+                <Camera size={20} className="text-purple-400" />
+                <span className="text-sm font-medium text-gray-600">Zdjęcie, skan lub PDF faktury</span>
+              </>
+            )}
+            <input
+              ref={scanRef}
+              type="file"
+              accept="image/*,.pdf"
+              className="hidden"
+              disabled={scanning}
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleScan(f) }}
+            />
+          </label>
+        ) : (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-xs text-purple-700 font-semibold mb-1">
+              <CheckCircle2 size={13} />
+              Formularz wypełniony automatycznie
+              <span className={cn('ml-auto px-2 py-0.5 rounded-full text-[10px]',
+                scanResult.confidence === 'wysoka' ? 'bg-green-100 text-green-700'
+                : scanResult.confidence === 'srednia' ? 'bg-yellow-100 text-yellow-700'
+                : 'bg-red-100 text-red-700'
+              )}>
+                Pewność: {scanResult.confidence}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 text-xs">
+              {scanResult.supplier && <div className="bg-white rounded-lg px-3 py-2 border border-purple-100"><span className="text-gray-400">Dostawca: </span><span className="font-medium text-gray-800">{scanResult.supplier}</span></div>}
+              {scanResult.product && <div className="bg-white rounded-lg px-3 py-2 border border-purple-100"><span className="text-gray-400">Produkt: </span><span className="font-medium text-gray-800">{scanResult.product}</span></div>}
+              {scanResult.quantity && <div className="bg-white rounded-lg px-3 py-2 border border-purple-100"><span className="text-gray-400">Ilość: </span><span className="font-medium text-gray-800">{scanResult.quantity}</span></div>}
+              {scanResult.expiry_date && <div className="bg-white rounded-lg px-3 py-2 border border-purple-100"><span className="text-gray-400">Termin: </span><span className="font-medium text-gray-800">{scanResult.expiry_date}</span></div>}
+            </div>
+            <p className="text-xs text-purple-600 mt-1">Sprawdź dane w kolejnych krokach i popraw jeśli trzeba.</p>
+          </div>
+        )}
       </div>
 
       {/* Step indicator */}

@@ -25,7 +25,7 @@ export function formatDateTime(date: string | Date) {
 }
 
 export function isTemperatureOk(temp: number, min: number, max: number) {
-  return temp >= min && temp <= max
+  return temp >= Math.min(min, max) && temp <= Math.max(min, max)
 }
 
 export function getTodayStart() {

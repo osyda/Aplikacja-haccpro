@@ -8,22 +8,45 @@ async function getDashboardData(locationId: string) {
   const todayStart = getTodayStart()
   const todayEnd = getTodayEnd()
 
-  const [tempLogs, deliveryLogs, cleaningLogs, nonconformities, devices] = await Promise.all([
-    supabase.from('temperature_logs').select('*').eq('location_id', locationId).gte('measured_at', todayStart).lte('measured_at', todayEnd),
+  const [allTempLogsRes, deliveryLogs, cleaningLogs, nonconformities, devicesRes] = await Promise.all([
+    // fetch recent logs (not just today) to determine current alarm status per device
+    supabase.from('temperature_logs').select('*').eq('location_id', locationId)
+      .order('measured_at', { ascending: false }).limit(300),
     supabase.from('delivery_logs').select('*').eq('location_id', locationId).gte('received_at', todayStart).lte('received_at', todayEnd).order('received_at', { ascending: false }),
     supabase.from('cleaning_logs').select('id,area,agent,cleaned_at').eq('location_id', locationId).gte('cleaned_at', todayStart).lte('cleaned_at', todayEnd).order('cleaned_at', { ascending: false }),
     supabase.from('nonconformities').select('id').eq('location_id', locationId).eq('status', 'open'),
-    supabase.from('location_devices').select('id').eq('location_id', locationId),
+    supabase.from('location_devices').select('id,name,min_ok,max_ok').eq('location_id', locationId),
   ])
 
-  const tLogs = tempLogs.data ?? []
+  const allTempLogs = allTempLogsRes.data ?? []
   const dLogs = deliveryLogs.data ?? []
   const cLogs = cleaningLogs.data ?? []
 
-  const checkedDeviceNames = new Set(tLogs.map(l => l.device_name))
-  const totalDevices = devices.data?.length ?? 0
-  const checkedDevices = checkedDeviceNames.size
-  const alarmLogs = tLogs.filter(l => !isTemperatureOk(l.temperature, l.min_ok, l.max_ok))
+  // Build set of all device names (registered + orphan) — same logic as temperatures page
+  const registeredNames = new Set((devicesRes.data ?? []).map(d => d.name as string))
+  const allDeviceNames = new Set<string>(
+    Array.from(registeredNames).concat(allTempLogs.map(l => l.device_name as string))
+  )
+
+  const todayStartDate = new Date(todayStart)
+
+  // Per-device: last log + today count
+  let checkedDevices = 0
+  let tempAlarms = 0
+  for (const name of Array.from(allDeviceNames)) {
+    const dv = (devicesRes.data ?? []).find(d => d.name === name)
+    const logs = allTempLogs.filter(l => l.device_name === name)
+    const lastLog = logs[0] ?? null
+    const todayCount = logs.filter(l => new Date(l.measured_at) >= todayStartDate).length
+    if (todayCount > 0) checkedDevices++
+    if (lastLog) {
+      const min = dv?.min_ok ?? lastLog.min_ok
+      const max = dv?.max_ok ?? lastLog.max_ok
+      if (!isTemperatureOk(lastLog.temperature, min, max)) tempAlarms++
+    }
+  }
+
+  const totalDevices = allDeviceNames.size
 
   const lastDelivery = dLogs[0] ?? null
   const lastCleaning = cLogs[0] ?? null
@@ -32,7 +55,7 @@ async function getDashboardData(locationId: string) {
     totalDevices,
     checkedDevices,
     tempProgress: totalDevices > 0 ? Math.round((checkedDevices / totalDevices) * 100) : 0,
-    tempAlarms: alarmLogs.length,
+    tempAlarms,
     deliveryCount: dLogs.length,
     lastDelivery,
     cleaningCount: cLogs.length,

@@ -4,20 +4,26 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LayoutDashboard, Thermometer, Truck, Droplets, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import type { AppPermissions } from '@/lib/permissions'
 
 const ITEMS = [
-  { href: '/dashboard', label: 'Start', Icon: LayoutDashboard },
-  { href: '/temperatury', label: 'Temp.', Icon: Thermometer },
-  { href: '/dostawy', label: 'Dostawy', Icon: Truck },
-  { href: '/mycie', label: 'Mycie', Icon: Droplets },
-  { href: '/raporty', label: 'Raporty', Icon: FileText },
-]
+  { href: '/dashboard',   label: 'Start',    Icon: LayoutDashboard, permission: null },
+  { href: '/temperatury', label: 'Temp.',     Icon: Thermometer,     permission: 'temperatures' },
+  { href: '/dostawy',     label: 'Dostawy',   Icon: Truck,           permission: 'deliveries' },
+  { href: '/mycie',       label: 'Mycie',     Icon: Droplets,        permission: 'cleaning' },
+  { href: '/raporty',     label: 'Raporty',   Icon: FileText,        permission: 'reports' },
+] as const
 
-export function BottomNav() {
+export function BottomNav({ permissions }: { permissions: AppPermissions }) {
   const pathname = usePathname()
+
+  const visible = ITEMS.filter(item =>
+    item.permission === null || permissions[item.permission as keyof AppPermissions]
+  )
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 flex lg:hidden">
-      {ITEMS.map(({ href, label, Icon }) => {
+      {visible.map(({ href, label, Icon }) => {
         const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
         return (
           <Link

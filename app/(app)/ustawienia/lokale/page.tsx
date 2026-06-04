@@ -1,12 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { ChevronLeft, MapPin, Plus } from 'lucide-react'
 import { toast } from 'sonner'
+import { isOwnerRole } from '@/lib/permissions'
 import type { Location } from '@/types/database'
 
 const LOCATION_TYPES = ['Restauracja', 'Bar', 'Kawiarnia', 'Pizzeria', 'Fast-food', 'Stołówka', 'Catering', 'Sklep spożywczy', 'Inny']
@@ -17,11 +19,18 @@ export default function LocalePage() {
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [showForm, setShowForm] = useState(false)
+  const [isOwner, setIsOwner] = useState(false)
+  const router = useRouter()
   const supabase = createClient()
 
   async function fetchLocations() {
     const { data: { user } } = await supabase.auth.getUser()
-    const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user!.id).single()
+    const { data: profile } = await supabase.from('profiles').select('org_id, role').eq('id', user!.id).single()
+    if (!isOwnerRole(profile?.role)) {
+      router.replace('/ustawienia')
+      return
+    }
+    setIsOwner(true)
     const { data } = await supabase.from('locations').select('*').eq('org_id', profile?.org_id ?? '')
     setLocations(data ?? [])
   }
@@ -39,7 +48,7 @@ export default function LocalePage() {
     const { data: profile, error: profileError } = await supabase.from('profiles').select('org_id').eq('id', user.id).single()
     if (profileError || !profile?.org_id) { toast.error('Błąd profilu: ' + (profileError?.message ?? 'brak org_id')); setLoading(false); return }
 
-    const { data: loc, error } = await supabase.from('locations').insert({
+    const { error } = await supabase.from('locations').insert({
       org_id: profile.org_id,
       name: form.name,
       address: form.address,
@@ -53,17 +62,15 @@ export default function LocalePage() {
       return
     }
 
-    if (loc) {
-      await supabase.from('profiles').update({ location_id: loc.id }).eq('id', user.id)
-    }
-
     setLoading(false)
     setSuccess(true)
-    toast.success('Lokal zapisany!')
+    toast.success('Lokal zapisany! Możesz go wybrać w nagłówku aplikacji.')
     setForm({ name: '', address: '', city: '', type: '' })
     fetchLocations()
     setTimeout(() => { setSuccess(false); setShowForm(false) }, 2000)
   }
+
+  if (!isOwner) return null
 
   return (
     <div className="max-w-lg space-y-6">
