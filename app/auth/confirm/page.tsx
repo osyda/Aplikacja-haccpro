@@ -51,8 +51,10 @@ function ConfirmContent() {
 
       const { error } = await supabase.auth.setSession({ access_token, refresh_token })
       if (error) { router.replace('/login?error=link_expired'); return }
-      if (type === 'recovery' || type === 'invite' || type === 'signup') {
+      if (type === 'recovery' || type === 'invite') {
         router.replace('/set-password')
+      } else if (type === 'signup') {
+        router.replace('/login?confirmed=1')
       } else {
         router.replace('/dashboard')
       }
@@ -66,8 +68,10 @@ function ConfirmContent() {
     if (token_hash && type) {
       const { error } = await supabase.auth.verifyOtp({ token_hash, type })
       if (error) { router.replace('/login?error=link_expired'); return }
-      if (type === 'recovery' || type === 'invite' || type === 'signup') {
+      if (type === 'recovery' || type === 'invite') {
         router.replace('/set-password')
+      } else if (type === 'signup') {
+        router.replace('/login?confirmed=1')
       } else {
         router.replace(next)
       }
