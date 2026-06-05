@@ -115,3 +115,34 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
   return NextResponse.json({ ok: true })
 }
+
+export async function DELETE(_request: NextRequest, { params }: { params: { id: string } }) {
+  const user = await checkAdmin()
+  if (!user) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const admin = createAdminClient()
+  const { id } = params
+
+  // Fetch all user IDs before deleting (cascade will remove profiles)
+  const { data: profiles } = await admin
+    .from('profiles')
+    .select('id')
+    .eq('org_id', id)
+
+  // Delete organization — cascade removes profiles, locations, and all related records
+  const { error: deleteOrgErr } = await admin
+    .from('organizations')
+    .delete()
+    .eq('id', id)
+
+  if (deleteOrgErr) return NextResponse.json({ error: deleteOrgErr.message }, { status: 500 })
+
+  // Delete auth users (best-effort, don't fail if individual deletes error)
+  if (profiles && profiles.length > 0) {
+    await Promise.allSettled(
+      profiles.map(p => admin.auth.admin.deleteUser(p.id))
+    )
+  }
+
+  return NextResponse.json({ ok: true })
+}

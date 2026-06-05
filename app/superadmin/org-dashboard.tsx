@@ -6,7 +6,7 @@ import {
   Search, X, MessageSquare, ShieldOff, ShieldCheck,
   Building2, Users, MapPin, Loader2, Eye,
   CheckCircle2, AlertTriangle, ChevronDown, Mail,
-  UserCircle, Crown, Shield, User,
+  UserCircle, Crown, Shield, User, Trash2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -134,11 +134,14 @@ function PlanSelect({ orgId, current, onChanged }: { orgId: string; current: str
   )
 }
 
-function OrgDetailModal({ org, onClose }: { org: OrgRow; onClose: () => void }) {
+function OrgDetailModal({ org, onClose, onDeleted }: { org: OrgRow; onClose: () => void; onDeleted: (id: string) => void }) {
   const [profiles, setProfiles] = useState<OrgProfile[] | null>(null)
   const [locations, setLocations] = useState<OrgLocation[] | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [deleteInput, setDeleteInput] = useState('')
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     fetch(`/api/admin/orgs/${org.id}`)
@@ -151,6 +154,21 @@ function OrgDetailModal({ org, onClose }: { org: OrgRow; onClose: () => void }) 
       .catch(() => setError('Błąd pobierania danych'))
       .finally(() => setLoadingDetail(false))
   }, [org.id])
+
+  async function handleDelete() {
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/admin/orgs/${org.id}`, { method: 'DELETE' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Błąd')
+      toast.success(`Organizacja "${org.name}" została trwale usunięta`)
+      onDeleted(org.id)
+      onClose()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Błąd usuwania')
+      setDeleting(false)
+    }
+  }
 
   const status = orgStatus(org)
   const days = daysLeft(org.trial_ends_at)
@@ -316,6 +334,55 @@ function OrgDetailModal({ org, onClose }: { org: OrgRow; onClose: () => void }) 
               </div>
             </>
           )}
+
+          {/* Delete zone */}
+          <div className="border-t border-red-100 pt-5">
+            {!deleteConfirm ? (
+              <button
+                onClick={() => setDeleteConfirm(true)}
+                className="flex items-center gap-2 text-sm text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-xl transition-colors w-full"
+              >
+                <Trash2 size={14} />
+                Usuń tę organizację trwale
+              </button>
+            ) : (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-3">
+                <div>
+                  <p className="text-sm font-bold text-red-700">Trwałe usunięcie organizacji</p>
+                  <p className="text-xs text-red-600 mt-1">
+                    Spowoduje usunięcie wszystkich danych: lokali, pracowników, rejestrów temperatur, dostaw, niezgodności i kont użytkowników. <strong>Tej operacji nie można cofnąć.</strong>
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-red-700 mb-1.5">Wpisz nazwę organizacji aby potwierdzić: <strong>{org.name}</strong></p>
+                  <input
+                    type="text"
+                    value={deleteInput}
+                    onChange={e => setDeleteInput(e.target.value)}
+                    placeholder={org.name}
+                    className="w-full border border-red-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400/30"
+                    autoFocus
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleteInput !== org.name || deleting}
+                    className="flex-1 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                  >
+                    {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    {deleting ? 'Usuwanie…' : 'Usuń trwale'}
+                  </button>
+                  <button
+                    onClick={() => { setDeleteConfirm(false); setDeleteInput('') }}
+                    className="px-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    Anuluj
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -692,6 +759,7 @@ export function OrgDashboard({ initialOrgs }: { initialOrgs: OrgRow[] }) {
         <OrgDetailModal
           org={detailOrg}
           onClose={() => setDetailOrg(null)}
+          onDeleted={id => setOrgs(prev => prev.filter(o => o.id !== id))}
         />
       )}
     </div>
