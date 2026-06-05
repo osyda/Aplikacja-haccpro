@@ -2,16 +2,53 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ToastProvider } from '@/components/ui/toast-provider'
 import Link from 'next/link'
-import { LayoutDashboard, LogOut } from 'lucide-react'
+import { LayoutDashboard } from 'lucide-react'
 
-const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL ?? 'osyda@icloud.com'
+export const dynamic = 'force-dynamic'
+
+// Allowed superadmin emails (comma-separated in env var, or hardcoded fallback)
+const SUPERADMIN_EMAILS = (process.env.SUPERADMIN_EMAIL ?? 'osyda@icloud.com')
+  .split(',')
+  .map(e => e.toLowerCase().trim())
+  .filter(Boolean)
+
+function isSuperadmin(email: string | undefined | null): boolean {
+  if (!email) return false
+  return SUPERADMIN_EMAILS.includes(email.toLowerCase().trim())
+}
 
 export default async function SuperadminLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user || user.email !== SUPERADMIN_EMAIL) {
-    redirect('/dashboard')
+  if (!user) {
+    redirect('/login')
+  }
+
+  if (!isSuperadmin(user.email)) {
+    // Show a helpful error instead of silently redirecting
+    return (
+      <div className="min-h-screen bg-[#1B2E4B] flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center space-y-4">
+          <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center mx-auto">
+            <span className="text-2xl">🔒</span>
+          </div>
+          <h1 className="text-xl font-bold text-gray-900">Brak dostępu</h1>
+          <p className="text-sm text-gray-500">
+            Zalogowany jako: <strong className="text-gray-800">{user.email}</strong>
+          </p>
+          <p className="text-xs text-gray-400">
+            Panel właściciela jest dostępny tylko dla: <strong>{SUPERADMIN_EMAILS.join(', ')}</strong>
+          </p>
+          <Link
+            href="/dashboard"
+            className="block py-2.5 px-4 bg-[#1B2E4B] text-white rounded-xl text-sm font-semibold hover:bg-[#243d63] transition-colors"
+          >
+            Wróć do aplikacji
+          </Link>
+        </div>
+      </div>
+    )
   }
 
   return (
