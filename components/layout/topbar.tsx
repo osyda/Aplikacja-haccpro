@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { LogOut, MapPin, Bell, ChevronDown, Check, Building2 } from 'lucide-react'
+import { LogOut, MapPin, Bell, ChevronDown, Check, Building2, Shield } from 'lucide-react'
+import Link from 'next/link'
 import { formatDate } from '@/lib/utils'
 import { MobileNav } from './mobile-nav'
 import { cn } from '@/lib/utils'
@@ -15,6 +16,7 @@ interface TopbarProps {
   userEmail?: string
   locations?: Location[]
   currentLocationId?: string
+  isSuperadmin?: boolean
 }
 
 export function Topbar({
@@ -22,6 +24,7 @@ export function Topbar({
   userEmail,
   locations = [],
   currentLocationId = '',
+  isSuperadmin = false,
 }: TopbarProps) {
   const router = useRouter()
   const supabase = createClient()
@@ -127,6 +130,15 @@ export function Topbar({
       </div>
 
       <div className="flex items-center gap-1 md:gap-2">
+        {isSuperadmin && (
+          <Link
+            href="/superadmin"
+            title="Panel właściciela"
+            className="p-2 text-brand-green hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
+          >
+            <Shield size={16} />
+          </Link>
+        )}
         <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
           <Bell size={16} />
         </button>

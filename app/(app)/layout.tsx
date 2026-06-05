@@ -51,6 +51,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ? (allLocations ?? [])
     : (allLocations ?? []).filter(loc => loc.id === currentLocationId)
 
+  const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL ?? 'osyda@icloud.com'
+  const isSuperadmin = !!(user.email && SUPERADMIN_EMAIL.split(',').map(e => e.toLowerCase().trim()).includes(user.email.toLowerCase().trim()))
+
   return (
     <div className="min-h-screen bg-gray-50">
       <ToastProvider />
@@ -60,6 +63,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         userEmail={user.email}
         locations={visibleLocations}
         currentLocationId={currentLocationId}
+        isSuperadmin={isSuperadmin}
       />
       <main className="lg:ml-64 pt-14 pb-16 lg:pb-0 min-h-screen">
         <div className="p-4 md:p-6 max-w-5xl">
