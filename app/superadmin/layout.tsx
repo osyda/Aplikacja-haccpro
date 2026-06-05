@@ -38,7 +38,7 @@ export default async function SuperadminLayout({ children }: { children: React.R
             Zalogowany jako: <strong className="text-gray-800">{user.email}</strong>
           </p>
           <p className="text-xs text-gray-400">
-            Panel właściciela jest dostępny tylko dla: <strong>{SUPERADMIN_EMAILS.join(', ')}</strong>
+            Skontaktuj się z administratorem systemu.
           </p>
           <Link
             href="/dashboard"
