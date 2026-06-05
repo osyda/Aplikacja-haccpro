@@ -6,7 +6,8 @@ import {
   Search, X, MessageSquare, ShieldOff, ShieldCheck,
   Building2, Users, MapPin, Loader2, Eye,
   CheckCircle2, AlertTriangle, ChevronDown, Mail,
-  UserCircle, Crown, Shield, User, Trash2,
+  UserCircle, Crown, Shield, User, Trash2, Plus,
+  Send,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -389,6 +390,185 @@ function OrgDetailModal({ org, onClose, onDeleted }: { org: OrgRow; onClose: () 
   )
 }
 
+function AddClientModal({ onClose, onAdded }: { onClose: () => void; onAdded: (org: OrgRow) => void }) {
+  const [form, setForm] = useState({ orgName: '', ownerName: '', ownerEmail: '', plan: 'trial', trialDays: '14' })
+  const [saving, setSaving] = useState(false)
+  const [done, setDone] = useState(false)
+
+  function set(field: string, value: string) {
+    setForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      const res = await fetch('/api/admin/orgs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orgName: form.orgName,
+          ownerName: form.ownerName,
+          ownerEmail: form.ownerEmail,
+          plan: form.plan,
+          trialDays: parseInt(form.trialDays) || 14,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Błąd')
+
+      const trialEndsAt = form.plan === 'trial'
+        ? new Date(Date.now() + (parseInt(form.trialDays) || 14) * 86_400_000).toISOString()
+        : null
+
+      onAdded({
+        id: json.orgId,
+        name: form.orgName,
+        plan: form.plan,
+        is_active: true,
+        trial_ends_at: trialEndsAt,
+        admin_notes: null,
+        created_at: new Date().toISOString(),
+        owner_name: form.ownerName,
+        owner_email: form.ownerEmail,
+        location_count: 0,
+        user_count: 1,
+      })
+      setDone(true)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Błąd')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div>
+            <h2 className="font-bold text-gray-900">Dodaj nowego klienta</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Tworzy organizację i wysyła email z zaproszeniem</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-400">
+            <X size={16} />
+          </button>
+        </div>
+
+        {done ? (
+          <div className="p-6 text-center space-y-4">
+            <div className="w-14 h-14 bg-green-100 rounded-2xl flex items-center justify-center mx-auto">
+              <Send size={24} className="text-green-600" />
+            </div>
+            <div>
+              <p className="font-bold text-gray-900">Zaproszenie wysłane!</p>
+              <p className="text-sm text-gray-500 mt-1">
+                Organizacja <strong>{form.orgName}</strong> została utworzona.<br />
+                Email z zaproszeniem wysłano na <strong>{form.ownerEmail}</strong>.
+              </p>
+              <p className="text-xs text-gray-400 mt-2">
+                Klient kliknie link w emailu i ustawi hasło do swojego konta.
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-full py-2.5 rounded-xl bg-[#1B2E4B] text-white text-sm font-semibold hover:bg-[#243d63] transition-colors"
+            >
+              Zamknij
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Nazwa firmy / organizacji *</label>
+              <input
+                type="text"
+                required
+                placeholder="np. Restauracja Mario"
+                value={form.orgName}
+                onChange={e => set('orgName', e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#22C55E]/20 focus:border-[#22C55E] transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Imię i nazwisko właściciela</label>
+              <input
+                type="text"
+                placeholder="np. Jan Kowalski"
+                value={form.ownerName}
+                onChange={e => set('ownerName', e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#22C55E]/20 focus:border-[#22C55E] transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Email właściciela *</label>
+              <input
+                type="email"
+                required
+                placeholder="jan@restauracja.pl"
+                value={form.ownerEmail}
+                onChange={e => set('ownerEmail', e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#22C55E]/20 focus:border-[#22C55E] transition-colors"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">Plan</label>
+                <select
+                  value={form.plan}
+                  onChange={e => set('plan', e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#22C55E]/20 focus:border-[#22C55E] transition-colors bg-white"
+                >
+                  {PLANS.map(p => <option key={p} value={p}>{PLAN_LABEL[p]}</option>)}
+                </select>
+              </div>
+              {form.plan === 'trial' && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Dni trialu</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="365"
+                    value={form.trialDays}
+                    onChange={e => set('trialDays', e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#22C55E]/20 focus:border-[#22C55E] transition-colors"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 text-xs text-blue-700">
+              Na podany email zostanie wysłane zaproszenie z linkiem do ustawienia hasła.
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="submit"
+                disabled={saving}
+                className="flex-1 py-2.5 rounded-xl bg-[#1B2E4B] text-white text-sm font-semibold hover:bg-[#243d63] transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                {saving ? 'Tworzę…' : 'Utwórz i wyślij zaproszenie'}
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Anuluj
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function OrgDashboard({ initialOrgs }: { initialOrgs: OrgRow[] }) {
   const [orgs, setOrgs] = useState<OrgRow[]>(initialOrgs)
   const [search, setSearch] = useState('')
@@ -397,6 +577,7 @@ export function OrgDashboard({ initialOrgs }: { initialOrgs: OrgRow[] }) {
   const [notesOrg, setNotesOrg] = useState<OrgRow | null>(null)
   const [notesText, setNotesText] = useState('')
   const [detailOrg, setDetailOrg] = useState<OrgRow | null>(null)
+  const [showAddClient, setShowAddClient] = useState(false)
 
   const stats = useMemo(() => ({
     total: orgs.length,
@@ -480,9 +661,18 @@ export function OrgDashboard({ initialOrgs }: { initialOrgs: OrgRow[] }) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Panel właściciela</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Zarządzaj organizacjami korzystającymi z HACCPro</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Panel właściciela</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Zarządzaj organizacjami korzystającymi z HACCPro</p>
+        </div>
+        <button
+          onClick={() => setShowAddClient(true)}
+          className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#22C55E] text-white text-sm font-semibold hover:bg-green-600 transition-colors shadow-sm"
+        >
+          <Plus size={15} />
+          Dodaj klienta
+        </button>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -760,6 +950,17 @@ export function OrgDashboard({ initialOrgs }: { initialOrgs: OrgRow[] }) {
           org={detailOrg}
           onClose={() => setDetailOrg(null)}
           onDeleted={id => setOrgs(prev => prev.filter(o => o.id !== id))}
+        />
+      )}
+
+      {showAddClient && (
+        <AddClientModal
+          onClose={() => setShowAddClient(false)}
+          onAdded={org => {
+            setOrgs(prev => [org, ...prev])
+            setShowAddClient(false)
+            toast.success(`Organizacja "${org.name}" utworzona, zaproszenie wysłane`)
+          }}
         />
       )}
     </div>
