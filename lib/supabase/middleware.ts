@@ -31,6 +31,8 @@ export async function updateSession(request: NextRequest) {
 
   if (!user && !isLoginRegister && !isAuthUtil) {
     url.pathname = '/login'
+    // Preserve intended destination so login can redirect back
+    url.searchParams.set('next', request.nextUrl.pathname)
     return NextResponse.redirect(url)
   }
 

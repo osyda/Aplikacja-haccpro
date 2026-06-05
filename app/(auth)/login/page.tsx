@@ -44,7 +44,8 @@ function LoginContent() {
       setLoading(false)
       return
     }
-    router.push('/')
+    const next = searchParams.get('next')
+    router.push(next && next.startsWith('/') ? next : '/')
     router.refresh()
   }
 
