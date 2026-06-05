@@ -10,6 +10,32 @@ async function checkAdmin() {
   return user?.email === SUPERADMIN_EMAIL ? user : null
 }
 
+export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
+  const user = await checkAdmin()
+  if (!user) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const admin = createAdminClient()
+  const { id } = params
+
+  const [profilesRes, locationsRes] = await Promise.all([
+    admin
+      .from('profiles')
+      .select('id, full_name, email, role, location_id, locations(name)')
+      .eq('org_id', id)
+      .order('role'),
+    admin
+      .from('locations')
+      .select('id, name, created_at')
+      .eq('org_id', id)
+      .order('name'),
+  ])
+
+  if (profilesRes.error) return NextResponse.json({ error: profilesRes.error.message }, { status: 500 })
+  if (locationsRes.error) return NextResponse.json({ error: locationsRes.error.message }, { status: 500 })
+
+  return NextResponse.json({ profiles: profilesRes.data ?? [], locations: locationsRes.data ?? [] })
+}
+
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   const user = await checkAdmin()
   if (!user) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

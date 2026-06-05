@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
 import {
   Search, X, MessageSquare, ShieldOff, ShieldCheck,
-  Building2, Users, MapPin, RefreshCw, Loader2,
-  CheckCircle2, AlertTriangle, Clock, ChevronDown,
+  Building2, Users, MapPin, Loader2, Eye,
+  CheckCircle2, AlertTriangle, ChevronDown, Mail,
+  UserCircle, Crown, Shield, User,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -23,6 +24,21 @@ export interface OrgRow {
   user_count: number
 }
 
+interface OrgProfile {
+  id: string
+  full_name: string | null
+  email: string | null
+  role: string | null
+  location_id: string | null
+  locations: { name: string } | null
+}
+
+interface OrgLocation {
+  id: string
+  name: string
+  created_at: string
+}
+
 const PLANS = ['trial', 'start', 'pro', 'multi', 'enterprise'] as const
 const PLAN_LABEL: Record<string, string> = {
   trial: 'Trial', start: 'Start', pro: 'Pro', multi: 'Multi', enterprise: 'Enterprise',
@@ -33,6 +49,14 @@ const PLAN_CLS: Record<string, string> = {
   pro:        'bg-purple-100 text-purple-700 border-purple-200',
   multi:      'bg-orange-100 text-orange-700 border-orange-200',
   enterprise: 'bg-slate-100 text-slate-700 border-slate-200',
+}
+const ROLE_LABEL: Record<string, string> = {
+  owner: 'Właściciel', manager: 'Manager', staff: 'Pracownik',
+}
+const ROLE_ICON: Record<string, React.ReactNode> = {
+  owner:   <Crown size={12} className="text-amber-500" />,
+  manager: <Shield size={12} className="text-blue-500" />,
+  staff:   <User size={12} className="text-gray-400" />,
 }
 
 type FilterType = 'all' | 'trial' | 'paying' | 'expired' | 'suspended'
@@ -110,6 +134,194 @@ function PlanSelect({ orgId, current, onChanged }: { orgId: string; current: str
   )
 }
 
+function OrgDetailModal({ org, onClose }: { org: OrgRow; onClose: () => void }) {
+  const [profiles, setProfiles] = useState<OrgProfile[] | null>(null)
+  const [locations, setLocations] = useState<OrgLocation[] | null>(null)
+  const [loadingDetail, setLoadingDetail] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch(`/api/admin/orgs/${org.id}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) { setError(data.error); return }
+        setProfiles(data.profiles)
+        setLocations(data.locations)
+      })
+      .catch(() => setError('Błąd pobierania danych'))
+      .finally(() => setLoadingDetail(false))
+  }, [org.id])
+
+  const status = orgStatus(org)
+  const days = daysLeft(org.trial_ends_at)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-end">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white w-full max-w-xl h-full overflow-y-auto shadow-2xl flex flex-col">
+        {/* Header */}
+        <div className="sticky top-0 z-10 bg-[#1B2E4B] text-white px-6 py-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center font-bold text-lg shrink-0">
+            {org.name.slice(0, 1).toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="font-bold text-base truncate">{org.name}</h2>
+            <p className="text-xs text-white/60">{org.owner_email}</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/10 transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Status overview */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-gray-50 rounded-xl p-3 space-y-1">
+              <p className="text-xs text-gray-500 font-medium">Status</p>
+              {status === 'active' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                  <CheckCircle2 size={10} /> Aktywne
+                </span>
+              )}
+              {status === 'expired' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">
+                  <AlertTriangle size={10} /> Wygasłe
+                </span>
+              )}
+              {status === 'suspended' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                  <ShieldOff size={10} /> Zawieszone
+                </span>
+              )}
+            </div>
+            <div className="bg-gray-50 rounded-xl p-3 space-y-1">
+              <p className="text-xs text-gray-500 font-medium">Plan</p>
+              <span className={cn('inline-block px-2 py-0.5 rounded-lg text-xs font-semibold border', PLAN_CLS[org.plan] ?? PLAN_CLS.trial)}>
+                {PLAN_LABEL[org.plan] ?? org.plan}
+              </span>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-3 space-y-1">
+              <p className="text-xs text-gray-500 font-medium">Rejestracja</p>
+              <p className="text-sm font-semibold text-gray-800">{fmtDate(org.created_at)}</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-3 space-y-1">
+              <p className="text-xs text-gray-500 font-medium">Trial do</p>
+              {org.trial_ends_at ? (
+                <div>
+                  <p className={cn('text-sm font-semibold', days !== null && days < 0 ? 'text-red-600' : 'text-gray-800')}>
+                    {fmtDate(org.trial_ends_at)}
+                  </p>
+                  {days !== null && (
+                    <p className="text-xs text-gray-400">
+                      {days < 0 ? `${Math.abs(days)} dni temu` : days === 0 ? 'Dzisiaj' : `za ${days} dni`}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400">—</p>
+              )}
+            </div>
+          </div>
+
+          {/* Owner */}
+          <div>
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Właściciel</h3>
+            <div className="bg-gray-50 rounded-xl p-3 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center">
+                <Crown size={16} className="text-amber-500" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">{org.owner_name || '—'}</p>
+                <a href={`mailto:${org.owner_email}`} className="text-xs text-blue-500 hover:underline flex items-center gap-1">
+                  <Mail size={11} />{org.owner_email}
+                </a>
+              </div>
+            </div>
+          </div>
+
+          {/* Admin notes */}
+          {org.admin_notes && (
+            <div>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Notatka adminа</h3>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800 whitespace-pre-wrap">
+                {org.admin_notes}
+              </div>
+            </div>
+          )}
+
+          {loadingDetail ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 size={24} className="animate-spin text-gray-400" />
+            </div>
+          ) : error ? (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-600">{error}</div>
+          ) : (
+            <>
+              {/* Locations */}
+              <div>
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <MapPin size={12} /> Lokale ({locations?.length ?? 0})
+                </h3>
+                {locations && locations.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {locations.map(loc => (
+                      <div key={loc.id} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2.5">
+                        <MapPin size={13} className="text-[#22C55E] shrink-0" />
+                        <p className="text-sm font-medium text-gray-800">{loc.name}</p>
+                        <p className="text-xs text-gray-400 ml-auto">{fmtDate(loc.created_at)}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400 italic">Brak lokali</p>
+                )}
+              </div>
+
+              {/* Employees */}
+              <div>
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <Users size={12} /> Pracownicy ({profiles?.length ?? 0})
+                </h3>
+                {profiles && profiles.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {profiles.map(p => (
+                      <div key={p.id} className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2.5">
+                        <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center shrink-0">
+                          <UserCircle size={18} className="text-gray-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            {ROLE_ICON[p.role ?? 'staff']}
+                            <p className="text-sm font-semibold text-gray-900 truncate">
+                              {p.full_name || '(brak imienia)'}
+                            </p>
+                            <span className="text-xs text-gray-400 shrink-0">
+                              {ROLE_LABEL[p.role ?? ''] ?? p.role}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-400 truncate">{p.email}</p>
+                          {p.locations && (
+                            <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
+                              <MapPin size={10} />
+                              {(p.locations as { name: string }).name}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400 italic">Brak pracowników</p>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function OrgDashboard({ initialOrgs }: { initialOrgs: OrgRow[] }) {
   const [orgs, setOrgs] = useState<OrgRow[]>(initialOrgs)
   const [search, setSearch] = useState('')
@@ -117,6 +329,7 @@ export function OrgDashboard({ initialOrgs }: { initialOrgs: OrgRow[] }) {
   const [loading, setLoading] = useState<string | null>(null)
   const [notesOrg, setNotesOrg] = useState<OrgRow | null>(null)
   const [notesText, setNotesText] = useState('')
+  const [detailOrg, setDetailOrg] = useState<OrgRow | null>(null)
 
   const stats = useMemo(() => ({
     total: orgs.length,
@@ -200,13 +413,11 @@ export function OrgDashboard({ initialOrgs }: { initialOrgs: OrgRow[] }) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Panel właściciela</h1>
         <p className="text-sm text-gray-500 mt-0.5">Zarządzaj organizacjami korzystającymi z HACCPro</p>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <StatCard label="Wszystkie organizacje" value={stats.total} color="text-gray-900" />
         <StatCard label="W trialu" value={stats.trialing} color="text-blue-600" />
@@ -215,7 +426,6 @@ export function OrgDashboard({ initialOrgs }: { initialOrgs: OrgRow[] }) {
         <StatCard label="Zawieszone" value={stats.suspended} color="text-red-600" />
       </div>
 
-      {/* Filter bar */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -255,7 +465,6 @@ export function OrgDashboard({ initialOrgs }: { initialOrgs: OrgRow[] }) {
         </div>
       </div>
 
-      {/* Table */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         {filtered.length === 0 ? (
           <div className="py-16 text-center">
@@ -287,8 +496,11 @@ export function OrgDashboard({ initialOrgs }: { initialOrgs: OrgRow[] }) {
                   const days = daysLeft(org.trial_ends_at)
                   const busy = isLoading(org.id)
                   return (
-                    <tr key={org.id} className={cn('hover:bg-gray-50 transition-colors', !org.is_active && 'opacity-60')}>
-                      {/* Org name */}
+                    <tr
+                      key={org.id}
+                      className={cn('hover:bg-gray-50 transition-colors cursor-pointer', !org.is_active && 'opacity-60')}
+                      onClick={() => setDetailOrg(org)}
+                    >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded-lg bg-[#1B2E4B] flex items-center justify-center text-white font-bold text-xs shrink-0">
@@ -306,18 +518,15 @@ export function OrgDashboard({ initialOrgs }: { initialOrgs: OrgRow[] }) {
                         </div>
                       </td>
 
-                      {/* Owner */}
                       <td className="px-4 py-3">
                         <p className="text-sm text-gray-800 font-medium">{org.owner_name || '—'}</p>
                         <p className="text-xs text-gray-400">{org.owner_email}</p>
                       </td>
 
-                      {/* Plan */}
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                         <PlanSelect orgId={org.id} current={org.plan} onChanged={plan => changePlan(org, plan)} />
                       </td>
 
-                      {/* Status */}
                       <td className="px-4 py-3">
                         {status === 'active' && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
@@ -336,7 +545,6 @@ export function OrgDashboard({ initialOrgs }: { initialOrgs: OrgRow[] }) {
                         )}
                       </td>
 
-                      {/* Trial ends */}
                       <td className="px-4 py-3">
                         {org.plan === 'trial' && org.trial_ends_at ? (
                           <div>
@@ -354,7 +562,6 @@ export function OrgDashboard({ initialOrgs }: { initialOrgs: OrgRow[] }) {
                         )}
                       </td>
 
-                      {/* Locations */}
                       <td className="px-4 py-3 text-center">
                         <span className="inline-flex items-center gap-1 text-sm font-semibold text-gray-700">
                           <MapPin size={12} className="text-gray-400" />
@@ -362,7 +569,6 @@ export function OrgDashboard({ initialOrgs }: { initialOrgs: OrgRow[] }) {
                         </span>
                       </td>
 
-                      {/* Users */}
                       <td className="px-4 py-3 text-center">
                         <span className="inline-flex items-center gap-1 text-sm font-semibold text-gray-700">
                           <Users size={12} className="text-gray-400" />
@@ -370,19 +576,24 @@ export function OrgDashboard({ initialOrgs }: { initialOrgs: OrgRow[] }) {
                         </span>
                       </td>
 
-                      {/* Created */}
                       <td className="px-4 py-3">
                         <p className="text-xs text-gray-500">{fmtDate(org.created_at)}</p>
                       </td>
 
-                      {/* Actions */}
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
                           {busy ? (
                             <Loader2 size={16} className="animate-spin text-gray-400" />
                           ) : (
                             <>
-                              {/* Suspend / Activate */}
+                              <button
+                                onClick={() => setDetailOrg(org)}
+                                title="Szczegóły organizacji"
+                                className="p-1.5 rounded-lg text-gray-400 hover:text-[#1B2E4B] hover:bg-gray-100 transition-colors"
+                              >
+                                <Eye size={15} />
+                              </button>
+
                               {org.is_active ? (
                                 <button
                                   onClick={() => suspend(org.id)}
@@ -401,7 +612,6 @@ export function OrgDashboard({ initialOrgs }: { initialOrgs: OrgRow[] }) {
                                 </button>
                               )}
 
-                              {/* Extend trial */}
                               {org.plan === 'trial' && (
                                 <button
                                   onClick={() => extendTrial(org, 14)}
@@ -412,7 +622,6 @@ export function OrgDashboard({ initialOrgs }: { initialOrgs: OrgRow[] }) {
                                 </button>
                               )}
 
-                              {/* Notes */}
                               <button
                                 onClick={() => openNotes(org)}
                                 title={org.admin_notes ? 'Edytuj notatkę' : 'Dodaj notatkę'}
@@ -476,6 +685,14 @@ export function OrgDashboard({ initialOrgs }: { initialOrgs: OrgRow[] }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Detail side panel */}
+      {detailOrg && (
+        <OrgDetailModal
+          org={detailOrg}
+          onClose={() => setDetailOrg(null)}
+        />
       )}
     </div>
   )
