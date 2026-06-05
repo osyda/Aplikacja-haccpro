@@ -17,7 +17,7 @@ export default function Regulamin() {
       </div>
 
       <Section title="§1. Postanowienia ogólne">
-        <p>1.1. Niniejszy Regulamin określa zasady i warunki świadczenia usług drogą elektroniczną przez HACCPro, zwanego dalej „Usługodawcą", za pośrednictwem aplikacji internetowej dostępnej pod adresem <strong>app.haccpro.pl</strong>.</p>
+        <p>1.1. Niniejszy Regulamin określa zasady i warunki świadczenia usług drogą elektroniczną przez HACCPro, zwanego dalej &bdquo;Usługodawcą&rdquo;, za pośrednictwem aplikacji internetowej dostępnej pod adresem <strong>app.haccpro.pl</strong>.</p>
         <p>1.2. Aplikacja HACCPro jest narzędziem do prowadzenia elektronicznej dokumentacji systemu HACCP (Hazard Analysis and Critical Control Points) przeznaczonym dla zakładów gastronomicznych, firm cateringowych oraz innych podmiotów prowadzących działalność związaną z produkcją lub obrotem żywnością.</p>
         <p>1.3. Korzystanie z Aplikacji oznacza akceptację niniejszego Regulaminu w całości. Jeśli nie zgadzasz się z jego postanowieniami, prosimy o niekorzystanie z Aplikacji.</p>
         <p>1.4. Regulamin jest dostępny nieodpłatnie pod adresem app.haccpro.pl/regulamin w formie umożliwiającej jego pobranie, utrwalenie i wydrukowanie.</p>

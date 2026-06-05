@@ -114,7 +114,7 @@ export default function PolitykaPrywatnosci() {
         <div className="space-y-2 mt-2">
           <Right title="Prawo dostępu (art. 15 RODO)">Masz prawo uzyskać informację, czy przetwarzamy Twoje dane, a jeśli tak — dostęp do nich oraz kopię.</Right>
           <Right title="Prawo do sprostowania (art. 16 RODO)">Masz prawo żądać poprawienia nieprawidłowych lub uzupełnienia niekompletnych danych.</Right>
-          <Right title="Prawo do usunięcia (art. 17 RODO)">Masz prawo żądać usunięcia danych („prawo do bycia zapomnianym"), gdy nie są już potrzebne do celów, dla których zostały zebrane lub gdy cofniesz zgodę.</Right>
+          <Right title="Prawo do usunięcia (art. 17 RODO)">Masz prawo żądać usunięcia danych (&bdquo;prawo do bycia zapomnianym&rdquo;), gdy nie są już potrzebne do celów, dla których zostały zebrane lub gdy cofniesz zgodę.</Right>
           <Right title="Prawo do ograniczenia przetwarzania (art. 18 RODO)">Masz prawo żądać ograniczenia przetwarzania danych w określonych przypadkach, np. gdy kwestionujesz ich prawidłowość.</Right>
           <Right title="Prawo do przenoszenia danych (art. 20 RODO)">Masz prawo otrzymać swoje dane w ustrukturyzowanym formacie nadającym się do odczytu maszynowego (np. CSV, JSON).</Right>
           <Right title="Prawo do sprzeciwu (art. 21 RODO)">Masz prawo wnieść sprzeciw wobec przetwarzania danych opartego na prawnie uzasadnionym interesie.</Right>
