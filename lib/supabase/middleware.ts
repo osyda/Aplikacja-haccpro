@@ -28,8 +28,9 @@ export async function updateSession(request: NextRequest) {
   const url = request.nextUrl.clone()
   const isLoginRegister = url.pathname.startsWith('/login') || url.pathname.startsWith('/register')
   const isAuthUtil = url.pathname.startsWith('/auth') || url.pathname === '/set-password'
+  const isPublicPage = url.pathname.startsWith('/regulamin') || url.pathname.startsWith('/polityka-prywatnosci') || url.pathname.startsWith('/suspended')
 
-  if (!user && !isLoginRegister && !isAuthUtil) {
+  if (!user && !isLoginRegister && !isAuthUtil && !isPublicPage) {
     url.pathname = '/login'
     // Preserve intended destination so login can redirect back
     url.searchParams.set('next', request.nextUrl.pathname)
