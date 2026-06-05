@@ -21,6 +21,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .eq('id', user.id)
     .single()
 
+  // Check if org is active; fails silently if column not yet added via migration
+  const { data: orgStatus } = await supabase
+    .from('organizations')
+    .select('is_active')
+    .eq('id', profile?.org_id ?? '')
+    .maybeSingle()
+  if (orgStatus && (orgStatus as { is_active?: boolean }).is_active === false) {
+    redirect('/suspended')
+  }
+
   const locRaw = profile?.locations
   const locationName = (locRaw && !Array.isArray(locRaw) ? (locRaw as { name: string }) : null)?.name ?? 'Mój lokal'
   const currentLocationId = profile?.location_id ?? ''
