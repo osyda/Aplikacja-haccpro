@@ -4,6 +4,8 @@ import { renderToBuffer } from '@react-pdf/renderer'
 import { createElement } from 'react'
 import { HacppPdfDocument } from './pdf-document'
 
+export const dynamic = 'force-dynamic'
+
 const MONTH_NAMES = ['', 'Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień']
 
 async function fetchModuleData(
