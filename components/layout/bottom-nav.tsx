@@ -22,7 +22,7 @@ export function BottomNav({ permissions }: { permissions: AppPermissions }) {
   )
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.08)] flex lg:hidden pb-safe">
+    <nav className="fixed bottom-0 left-0 right-0 z-30 bg-[#1B2E4B] shadow-[0_-4px_24px_rgba(0,0,0,0.25)] flex lg:hidden pb-safe">
       {visible.map(({ href, label, Icon }) => {
         const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
         return (
@@ -33,15 +33,15 @@ export function BottomNav({ permissions }: { permissions: AppPermissions }) {
           >
             <span className={cn(
               'flex items-center justify-center w-12 h-8 rounded-2xl transition-all',
-              active ? 'bg-[#22C55E]/15' : ''
+              active ? 'bg-[#22C55E]/20' : ''
             )}>
               <Icon
                 size={22}
                 strokeWidth={active ? 2.5 : 1.75}
-                className={cn(active ? 'text-[#22C55E]' : 'text-gray-400')}
+                className={cn(active ? 'text-[#22C55E]' : 'text-white/40')}
               />
             </span>
-            <span className={cn(active ? 'text-[#22C55E]' : 'text-gray-400')}>
+            <span className={cn(active ? 'text-[#22C55E]' : 'text-white/40')}>
               {label}
             </span>
           </Link>
