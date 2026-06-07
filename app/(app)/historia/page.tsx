@@ -1,76 +1,110 @@
 import { createClient } from '@/lib/supabase/server'
-import { Clock, ArrowRight } from 'lucide-react'
-import { formatDateTime } from '@/lib/utils'
+import { Clock } from 'lucide-react'
+import { formatDateTime, cn } from '@/lib/utils'
+import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Badge } from '@/components/ui/badge'
+import { formatAuditEntry, AUDIT_MODULE_OPTIONS } from '@/lib/audit-log-format'
+import { HistoryFilters } from './history-filters'
+import type { AuditLog } from '@/types/database'
 
-const TABLE_LABELS: Record<string, string> = {
-  temperature_logs: 'Temperatura',
-  delivery_logs: 'Dostawa',
-  cleaning_logs: 'Mycie',
-  training_logs: 'Szkolenie',
-  nonconformities: 'Niezgodność',
-  ddd_logs: 'Kontrola DDD',
-  locations: 'Lokal',
-  profiles: 'Użytkownik',
+interface PageProps {
+  searchParams: { action?: string; table?: string }
 }
 
-const ACTION_STYLES: Record<string, string> = {
-  INSERT: 'bg-green-100 text-green-700',
-  UPDATE: 'bg-blue-100 text-blue-700',
-  DELETE: 'bg-red-100 text-red-700',
+const ACTION_BADGE_VARIANT: Record<AuditLog['action'], 'ok' | 'warn' | 'error'> = {
+  INSERT: 'ok',
+  UPDATE: 'warn',
+  DELETE: 'error',
 }
 
-export default async function HistoriaPage() {
+const ACTION_LABEL: Record<AuditLog['action'], string> = {
+  INSERT: 'Dodano',
+  UPDATE: 'Zmieniono',
+  DELETE: 'Usunięto',
+}
+
+export default async function HistoriaPage({ searchParams }: PageProps) {
   const supabase = createClient()
 
-  const { data: logs } = await supabase
-    .from('audit_log')
-    .select('*')
-    .order('changed_at', { ascending: false })
-    .limit(100)
+  let query = supabase.from('audit_log').select('*').order('changed_at', { ascending: false }).limit(100)
+  if (searchParams.action && ['INSERT', 'UPDATE', 'DELETE'].includes(searchParams.action)) {
+    query = query.eq('action', searchParams.action)
+  }
+  if (searchParams.table) {
+    query = query.eq('table_name', searchParams.table)
+  }
+  const { data: logs } = await query
+
+  const actorIds = Array.from(new Set((logs ?? []).map(l => l.changed_by).filter(Boolean) as string[]))
+  const { data: actors } = actorIds.length > 0
+    ? await supabase.from('profiles').select('id, full_name').in('id', actorIds)
+    : { data: [] }
+  const actorMap: Record<string, string> = Object.fromEntries(
+    (actors ?? []).map((a: { id: string; full_name: string | null }) => [a.id, a.full_name ?? 'Nieznany użytkownik'])
+  )
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Historia zmian</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Kompletny audit log wszystkich operacji w systemie</p>
-      </div>
+    <div className="space-y-5">
+      <PageHeader title="Historia zmian" subtitle="Kompletny rejestr operacji w systemie" />
+
+      <HistoryFilters moduleOptions={AUDIT_MODULE_OPTIONS} />
 
       {logs && logs.length > 0 ? (
         <div className="card">
           <div className="divide-y divide-gray-50">
-            {logs.map((log) => (
-              <div key={log.id} className="py-3 flex items-start gap-3">
-                <div className={`shrink-0 px-2 py-0.5 rounded text-xs font-medium font-mono ${ACTION_STYLES[log.action] ?? 'bg-gray-100 text-gray-600'}`}>
-                  {log.action}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-900">
-                    <span className="font-medium">{TABLE_LABELS[log.table_name] ?? log.table_name}</span>
-                    <span className="text-gray-400 text-xs ml-2">#{log.record_id.slice(0, 8)}</span>
-                  </p>
-                  {log.action === 'UPDATE' && log.old_data && log.new_data && (
-                    <div className="mt-1 text-xs text-gray-500 flex items-center gap-1">
-                      <span className="text-red-500 truncate max-w-xs">
-                        {JSON.stringify(log.old_data).slice(0, 60)}
-                      </span>
-                      <ArrowRight size={10} className="shrink-0" />
-                      <span className="text-green-600 truncate max-w-xs">
-                        {JSON.stringify(log.new_data).slice(0, 60)}
-                      </span>
+            {logs.map(log => {
+              const action = log.action as AuditLog['action']
+              const actorName = log.changed_by ? actorMap[log.changed_by] ?? 'Nieznany użytkownik' : 'System'
+              const { sentence } = formatAuditEntry({ ...log, action }, actorName)
+              const hasDiff = action === 'UPDATE' && log.old_data && log.new_data
+              return (
+                <div key={log.id} className="py-3">
+                  <div className="flex items-start gap-3">
+                    <Badge variant={ACTION_BADGE_VARIANT[action]} className="shrink-0 mt-0.5 font-semibold">
+                      {ACTION_LABEL[action]}
+                    </Badge>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-900">{sentence}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{formatDateTime(log.changed_at)}</p>
                     </div>
+                  </div>
+
+                  {(log.old_data || log.new_data) && (
+                    <details className="mt-2 ml-[3.25rem] group">
+                      <summary className="text-xs text-gray-400 hover:text-brand-navy cursor-pointer select-none transition-colors">
+                        Szczegóły techniczne
+                      </summary>
+                      <div className="mt-2 space-y-1.5 text-xs font-mono">
+                        {hasDiff ? (
+                          <>
+                            <p className={cn('rounded-lg px-2.5 py-1.5 bg-red-50 text-red-700 break-all')}>
+                              {JSON.stringify(log.old_data)}
+                            </p>
+                            <p className={cn('rounded-lg px-2.5 py-1.5 bg-green-50 text-green-700 break-all')}>
+                              {JSON.stringify(log.new_data)}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="rounded-lg px-2.5 py-1.5 bg-gray-50 text-gray-600 break-all">
+                            {JSON.stringify(action === 'DELETE' ? log.old_data : log.new_data)}
+                          </p>
+                        )}
+                        <p className="text-gray-400">#{log.record_id.slice(0, 8)} · {log.table_name}</p>
+                      </div>
+                    </details>
                   )}
-                  <p className="text-xs text-gray-400 mt-0.5">{formatDateTime(log.changed_at)}</p>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       ) : (
-        <div className="card border-dashed border-2 border-gray-200 text-center py-12">
-          <Clock size={32} className="mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-500">Brak wpisów w historii zmian.</p>
-          <p className="text-xs text-gray-400 mt-1">Wpisy pojawiają się automatycznie po dodaniu danych.</p>
-        </div>
+        <EmptyState
+          icon={Clock}
+          title="Brak wpisów w historii zmian"
+          description="Wpisy pojawiają się automatycznie po dodaniu danych."
+        />
       )}
     </div>
   )

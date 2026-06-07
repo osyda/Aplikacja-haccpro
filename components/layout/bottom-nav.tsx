@@ -33,15 +33,15 @@ export function BottomNav({ permissions }: { permissions: AppPermissions }) {
           >
             <span className={cn(
               'flex items-center justify-center w-12 h-8 rounded-2xl transition-all',
-              active ? 'bg-[#1B2E4B]/10' : ''
+              active ? 'bg-brand-navy/10' : ''
             )}>
               <Icon
                 size={22}
                 strokeWidth={active ? 2.5 : 1.75}
-                className={cn(active ? 'text-[#1B2E4B]' : 'text-gray-400')}
+                className={cn(active ? 'text-brand-navy' : 'text-gray-400')}
               />
             </span>
-            <span className={cn(active ? 'text-[#1B2E4B]' : 'text-gray-400')}>
+            <span className={cn(active ? 'text-brand-navy' : 'text-gray-400')}>
               {label}
             </span>
           </Link>

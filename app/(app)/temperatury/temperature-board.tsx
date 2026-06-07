@@ -1,17 +1,23 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import {
-  Thermometer, Plus, CheckCircle2, AlertCircle, Clock,
+  Thermometer, CheckCircle2, AlertCircle, Clock,
   ArrowRight, Settings, ChevronRight, Trash2,
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import type { DeviceWithStatus } from './page'
+import { Dialog } from '@/components/ui/dialog'
+import { PageHeader } from '@/components/ui/page-header'
+import { AlertBox } from '@/components/ui/alert-box'
+import { EmptyState } from '@/components/ui/empty-state'
+import { FilterChips } from '@/components/ui/filter-chips'
+import { CompactRecordCard } from '@/components/ui/compact-record-card'
 
 type FilterType = 'all' | 'missing' | 'ok' | 'alarm'
 
@@ -30,56 +36,52 @@ function guessQuickValues(min_ok: number, max_ok: number): number[] {
 }
 
 const STATUS_STYLE = {
-  ok:        { dot: 'bg-green-500',  card: 'border-green-100 bg-white',       badge: 'bg-green-100 text-green-700',   label: 'OK' },
-  alarm:     { dot: 'bg-red-500',    card: 'border-red-200 bg-red-50',         badge: 'bg-red-100 text-red-700',       label: 'Poza normą' },
-  missing:   { dot: 'bg-yellow-400', card: 'border-yellow-200 bg-yellow-50/40', badge: 'bg-yellow-100 text-yellow-700', label: 'Brak wpisu dziś' },
-  unchecked: { dot: 'bg-gray-300',   card: 'border-gray-100 bg-white',         badge: 'bg-gray-100 text-gray-500',     label: 'Nigdy nie sprawdzane' },
+  ok:        { dot: 'bg-green-500',  badge: 'bg-green-100 text-green-700',   label: 'OK' },
+  alarm:     { dot: 'bg-red-500',    badge: 'bg-red-100 text-red-700',       label: 'Poza normą' },
+  missing:   { dot: 'bg-yellow-400', badge: 'bg-yellow-100 text-yellow-700', label: 'Brak wpisu dziś' },
+  unchecked: { dot: 'bg-gray-300',   badge: 'bg-gray-100 text-gray-500',     label: 'Nigdy nie sprawdzane' },
 }
 
-interface DeviceCardProps {
-  device: DeviceWithStatus
+interface QuickEntryModalProps {
+  device: DeviceWithStatus | null
   locationId: string
+  onClose: () => void
   onSaved: () => void
 }
 
-function DeviceCard({ device, locationId, onSaved }: DeviceCardProps) {
-  const [open, setOpen] = useState(false)
+function QuickEntryModal({ device, locationId, onClose, onSaved }: QuickEntryModalProps) {
   const [temp, setTemp] = useState('')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const supabase = createClient()
 
-  const status = getDeviceStatus(device)
-  const s = STATUS_STYLE[status]
+  useEffect(() => {
+    if (device) {
+      setTemp(device.lastTemp !== null
+        ? String(device.lastTemp)
+        : String(Math.round(((device.min_ok + device.max_ok) / 2) * 10) / 10))
+      setNotes('')
+    }
+  }, [device])
 
   const tempNum = temp === '' ? null : parseFloat(temp.replace(',', '.'))
   const hasTemp = tempNum !== null && !isNaN(tempNum)
-  const normMin = Math.min(device.min_ok, device.max_ok)
-  const normMax = Math.max(device.min_ok, device.max_ok)
+  const normMin = device ? Math.min(device.min_ok, device.max_ok) : 0
+  const normMax = device ? Math.max(device.min_ok, device.max_ok) : 0
   const inRange = hasTemp && tempNum >= normMin && tempNum <= normMax
   const outOfRange = hasTemp && !inRange
   const isUnusual = hasTemp && (tempNum < -40 || tempNum > 100)
   const notesRequired = outOfRange
-
-  const quickValues = guessQuickValues(device.min_ok, device.max_ok)
-
-  function getDefaultTemp(): string {
-    if (device.lastTemp !== null) return String(device.lastTemp)
-    return String(Math.round(((device.min_ok + device.max_ok) / 2) * 10) / 10)
-  }
-
-  function openCard() {
-    setTemp(getDefaultTemp())
-    setOpen(true)
-  }
+  const quickValues = device ? guessQuickValues(device.min_ok, device.max_ok) : []
 
   function adjust(delta: number) {
-    const current = temp === '' ? parseFloat(getDefaultTemp()) : parseFloat(temp.replace(',', '.'))
+    const current = parseFloat(temp.replace(',', '.'))
     if (isNaN(current)) return
     setTemp(String(Math.round((current + delta) * 10) / 10))
   }
 
   async function handleSave() {
+    if (!device) return
     if (!hasTemp) { toast.error('Podaj temperaturę'); return }
     if (notesRequired && !notes.trim()) { toast.error('Temperatura poza normą — dodaj uwagę'); return }
     if (isUnusual && !window.confirm(`Ta temperatura (${tempNum}°C) wygląda nietypowo. Czy na pewno zapisać?`)) return
@@ -113,51 +115,20 @@ function DeviceCard({ device, locationId, onSaved }: DeviceCardProps) {
     }
 
     setSaving(false)
-    setTemp('')
-    setNotes('')
-    setOpen(false)
     onSaved()
+    onClose()
   }
 
   return (
-    <div className={cn('rounded-xl border-2 p-4 transition-all', s.card, open && 'shadow-md')}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <div className={cn('w-3 h-3 rounded-full mt-1.5 shrink-0', s.dot)} />
-          <div>
-            <p className="font-semibold text-gray-900 text-base leading-tight">{device.name}</p>
-            <p className="text-xs text-gray-500 mt-0.5">Norma: <span className="font-mono">{device.min_ok} – {device.max_ok}°C</span></p>
-            {device.lastTemp !== null && (
-              <p className="text-xs text-gray-500 mt-0.5">
-                Ostatni: <span className="font-mono font-medium">{device.lastTemp}°C</span>
-                {device.lastMeasuredAt && <span className="text-gray-400"> · {formatDateTime(device.lastMeasuredAt)}</span>}
-              </p>
-            )}
-          </div>
-        </div>
-        <div className="flex flex-col items-end gap-1 shrink-0">
-          <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', s.badge)}>{s.label}</span>
-          {device.todayCount > 0 && (
-            <span className="text-xs text-gray-400">dziś: {device.todayCount}×</span>
-          )}
-        </div>
-      </div>
-
-      {!open ? (
-        <button
-          onClick={openCard}
-          className="w-full mt-3 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl py-3 text-sm font-semibold transition-colors min-h-[52px]"
-        >
-          <Plus size={16} />
-          Dodaj temperaturę
-        </button>
-      ) : (
-        <div className="mt-4 space-y-4 border-t border-gray-100 pt-4">
-          <div className="flex items-center gap-2 text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-            <Thermometer size={13} />
-            Norma: <span className="font-mono font-semibold">{device.min_ok} – {device.max_ok}°C</span>
-          </div>
-
+    <Dialog
+      open={!!device}
+      onClose={onClose}
+      title={device?.name}
+      description={device ? `Norma: ${device.min_ok} – ${device.max_ok}°C` : undefined}
+      size="sm"
+    >
+      {device && (
+        <div className="space-y-4">
           <div>
             <p className="text-xs font-medium text-gray-500 mb-2">Szybki wybór:</p>
             <div className="flex flex-wrap gap-2">
@@ -169,8 +140,8 @@ function DeviceCard({ device, locationId, onSaved }: DeviceCardProps) {
                   className={cn(
                     'px-3.5 py-2 rounded-xl text-sm font-mono font-semibold border-2 transition-colors min-h-[44px]',
                     temp === String(v)
-                      ? 'border-blue-500 bg-blue-600 text-white'
-                      : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'
+                      ? 'border-brand-navy bg-brand-navy text-white'
+                      : 'border-gray-200 bg-white text-gray-700 hover:border-brand-navy/40'
                   )}
                 >
                   {v > 0 ? '+' : ''}{v}°
@@ -243,14 +214,14 @@ function DeviceCard({ device, locationId, onSaved }: DeviceCardProps) {
                 'flex-1 py-3.5 rounded-xl text-sm font-bold text-white transition-colors min-h-[52px]',
                 saving || !hasTemp || (notesRequired && !notes.trim())
                   ? 'bg-gray-300 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800'
+                  : 'bg-brand-green hover:bg-brand-green-dark'
               )}
             >
               {saving ? 'Zapisywanie…' : 'Zapisz temperaturę'}
             </button>
             <button
               type="button"
-              onClick={() => { setOpen(false); setTemp(''); setNotes('') }}
+              onClick={onClose}
               className="px-4 py-3.5 rounded-xl text-sm font-medium text-gray-600 border-2 border-gray-200 hover:bg-gray-50 min-h-[52px]"
             >
               Anuluj
@@ -258,7 +229,7 @@ function DeviceCard({ device, locationId, onSaved }: DeviceCardProps) {
           </div>
         </div>
       )}
-    </div>
+    </Dialog>
   )
 }
 
@@ -297,7 +268,7 @@ function DeviceManager({ locationId, onChanged }: { locationId: string; onChange
 
   if (!loaded) {
     return (
-      <button onClick={load} className="text-sm text-blue-600 hover:underline">
+      <button onClick={load} className="text-sm text-brand-navy hover:underline">
         Załaduj listę urządzeń…
       </button>
     )
@@ -318,7 +289,7 @@ function DeviceManager({ locationId, onChanged }: { locationId: string; onChange
         <input className="input w-20 text-sm" type="number" step="0.5" placeholder="Max°C"
           value={newDev.max} onChange={e => setNewDev(p => ({ ...p, max: e.target.value }))} />
         <button onClick={addDevice}
-          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+          className="px-4 py-2 bg-brand-navy text-white text-sm font-medium rounded-lg hover:bg-brand-navy-light">
           Dodaj
         </button>
       </div>
@@ -349,6 +320,7 @@ interface TemperatureBoardProps {
 export function TemperatureBoard({ devices, locationId, canManageDevices = true }: TemperatureBoardProps) {
   const [filter, setFilter] = useState<FilterType>('all')
   const [showManager, setShowManager] = useState(false)
+  const [selected, setSelected] = useState<DeviceWithStatus | null>(null)
   const router = useRouter()
 
   const todayChecked = devices.filter(d => d.todayCount > 0).length
@@ -371,34 +343,31 @@ export function TemperatureBoard({ devices, locationId, canManageDevices = true 
 
   const firstUnchecked = devices.find(d => d.todayCount === 0)
 
-  const filterLabels: Record<FilterType, string> = {
-    all: `Wszystkie (${counts.all})`,
-    missing: `Nieuzupełnione (${counts.missing})`,
-    ok: `OK (${counts.ok})`,
-    alarm: `Alarm (${counts.alarm})`,
-  }
+  const filterOptions: { value: FilterType; label: string; count: number }[] = [
+    { value: 'all', label: 'Wszystkie', count: counts.all },
+    { value: 'missing', label: 'Nieuzupełnione', count: counts.missing },
+    { value: 'ok', label: 'OK', count: counts.ok },
+    { value: 'alarm', label: 'Alarm', count: counts.alarm },
+  ]
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Temperatury</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Urządzenia chłodnicze</p>
-        </div>
-        {canManageDevices && (
+      <PageHeader
+        title="Temperatury"
+        subtitle="Urządzenia chłodnicze"
+        action={canManageDevices ? (
           <button
             onClick={() => setShowManager(!showManager)}
             className={cn(
               'flex items-center gap-1.5 text-sm px-3 py-2 border rounded-lg transition-colors',
-              showManager ? 'bg-blue-600 text-white border-blue-600' : 'text-gray-500 border-gray-200 hover:border-gray-300'
+              showManager ? 'bg-brand-navy text-white border-brand-navy' : 'text-gray-500 border-gray-200 hover:border-gray-300'
             )}
           >
             <Settings size={14} />
             <span className="hidden sm:inline">Zarządzaj</span>
           </button>
-        )}
-      </div>
+        ) : undefined}
+      />
 
       {/* Device manager */}
       {showManager && canManageDevices && (
@@ -438,8 +407,8 @@ export function TemperatureBoard({ devices, locationId, canManageDevices = true 
           </div>
           {firstUnchecked && todayChecked < total && (
             <button
-              onClick={() => document.getElementById(`dev-${firstUnchecked.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-              className="mt-3 flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 font-medium"
+              onClick={() => setSelected(firstUnchecked)}
+              className="mt-3 flex items-center gap-1.5 text-sm text-brand-navy hover:text-brand-navy-light font-medium"
             >
               <ArrowRight size={14} />
               Następne nieuzupełnione: {firstUnchecked.name}
@@ -450,69 +419,67 @@ export function TemperatureBoard({ devices, locationId, canManageDevices = true 
 
       {/* Alarm banner */}
       {counts.alarm > 0 && (
-        <div className="rounded-xl border-2 border-red-200 bg-red-50 p-4 flex items-start gap-3">
-          <AlertCircle size={18} className="text-red-600 mt-0.5 shrink-0" />
-          <div>
-            <p className="font-bold text-red-800 text-sm">Alarmy temperatur ({counts.alarm})</p>
-            <p className="text-xs text-red-600 mt-0.5">
-              {devices.filter(d => d.lastOk === false).map(d => d.name).join(', ')}
-            </p>
-          </div>
-        </div>
+        <AlertBox
+          variant="error"
+          title={`Alarmy temperatur (${counts.alarm})`}
+          description={devices.filter(d => d.lastOk === false).map(d => d.name).join(', ')}
+        />
       )}
 
       {/* Filters */}
       {total > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none">
-          {(Object.keys(filterLabels) as FilterType[]).map(f => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={cn(
-                'px-3.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap border transition-colors shrink-0',
-                filter === f
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
-              )}
-            >
-              {filterLabels[f]}
-            </button>
-          ))}
-        </div>
+        <FilterChips value={filter} onChange={setFilter} options={filterOptions} />
       )}
 
       {/* Device cards */}
       {filtered.length > 0 ? (
-        <div className="space-y-3">
-          {filtered.map(device => (
-            <div key={device.id} id={`dev-${device.id}`}>
-              <DeviceCard device={device} locationId={locationId} onSaved={() => router.refresh()} />
-              <Link
-                href={`/temperatury/${encodeURIComponent(device.name)}`}
-                className="flex items-center gap-1 mt-1.5 ml-3 text-xs text-gray-400 hover:text-blue-600 transition-colors w-fit"
-              >
-                <Clock size={11} />
-                Historia wpisów
-                <ChevronRight size={11} />
-              </Link>
-            </div>
-          ))}
+        <div className="space-y-2">
+          {filtered.map(device => {
+            const status = getDeviceStatus(device)
+            const s = STATUS_STYLE[status]
+            return (
+              <div key={device.id}>
+                <CompactRecordCard
+                  dotClassName={s.dot}
+                  title={device.name}
+                  meta={device.lastTemp !== null
+                    ? <>Ostatni: <span className="font-mono">{device.lastTemp}°C</span>{device.lastMeasuredAt && <> · {formatDateTime(device.lastMeasuredAt)}</>}</>
+                    : `Norma: ${device.min_ok} – ${device.max_ok}°C`}
+                  badge={<span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', s.badge)}>{s.label}</span>}
+                  onClick={() => setSelected(device)}
+                />
+                <Link
+                  href={`/temperatury/${encodeURIComponent(device.name)}`}
+                  className="flex items-center gap-1 mt-1 ml-3 text-xs text-gray-400 hover:text-brand-navy transition-colors w-fit"
+                >
+                  <Clock size={11} />
+                  Historia wpisów
+                  <ChevronRight size={11} />
+                </Link>
+              </div>
+            )
+          })}
         </div>
       ) : total === 0 ? (
-        <div className="card border-dashed border-2 border-gray-200 text-center py-12">
-          <Thermometer size={32} className="mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-500 mb-1">Brak urządzeń</p>
-          <p className="text-sm text-gray-400">
-            {canManageDevices
-              ? <>Kliknij <strong>Zarządzaj</strong> aby dodać lodówki i zamrażarki.</>
-              : 'Brak skonfigurowanych urządzeń. Skontaktuj się z właścicielem lokalu.'}
-          </p>
-        </div>
+        <EmptyState
+          icon={Thermometer}
+          title="Brak urządzeń"
+          description={canManageDevices
+            ? <>Kliknij <strong>Zarządzaj</strong> aby dodać lodówki i zamrażarki.</>
+            : 'Brak skonfigurowanych urządzeń. Skontaktuj się z właścicielem lokalu.'}
+        />
       ) : (
         <div className="card text-center py-8">
           <p className="text-gray-500 text-sm">Brak wyników dla wybranego filtra.</p>
         </div>
       )}
+
+      <QuickEntryModal
+        device={selected}
+        locationId={locationId}
+        onClose={() => setSelected(null)}
+        onSaved={() => router.refresh()}
+      />
     </div>
   )
 }
