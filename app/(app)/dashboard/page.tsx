@@ -5,6 +5,7 @@ import { getTodayStart, getTodayEnd, isTemperatureOk } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/page-header'
 import { AlertBox } from '@/components/ui/alert-box'
 import { Badge } from '@/components/ui/badge'
+import { GettingStarted, type OnboardingStep } from '@/components/onboarding/getting-started'
 import { cn } from '@/lib/utils'
 
 async function getDashboardData(locationId: string) {
@@ -65,6 +66,8 @@ async function getDashboardData(locationId: string) {
     cleaningCount: cLogs.length,
     lastCleaning,
     openNonconformities: nonconformities.data?.length ?? 0,
+    hasRegisteredDevices: (devicesRes.data ?? []).length > 0,
+    hasTemperatureLog: allTempLogs.length > 0,
   }
 }
 
@@ -74,7 +77,7 @@ export default async function DashboardPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('location_id, locations(name)')
+    .select('location_id, org_id, locations(name)')
     .eq('id', user!.id)
     .single()
 
@@ -82,6 +85,46 @@ export default async function DashboardPage() {
   const locRaw = profile?.locations
   const locationName = (locRaw && !Array.isArray(locRaw) ? (locRaw as { name: string }) : null)?.name ?? 'Mój lokal'
   const data = locationId ? await getDashboardData(locationId) : null
+
+  const { count: staffCount } = await supabase
+    .from('profiles')
+    .select('id', { count: 'exact', head: true })
+    .eq('org_id', profile?.org_id ?? '')
+
+  const onboardingSteps: OnboardingStep[] = [
+    {
+      id: 'location',
+      label: 'Dodaj swój lokal',
+      description: 'Skonfiguruj dane lokalu gastronomicznego',
+      done: !!locationId,
+      href: '/ustawienia/lokale',
+      ctaLabel: 'Dodaj lokal',
+    },
+    {
+      id: 'staff',
+      label: 'Zaproś pracowników',
+      description: 'Dodaj członków zespołu i przydziel im role',
+      done: (staffCount ?? 0) > 1,
+      href: '/ustawienia/pracownicy',
+      ctaLabel: 'Zaproś pracownika',
+    },
+    {
+      id: 'devices',
+      label: 'Dodaj urządzenia chłodnicze',
+      description: 'Zarejestruj lodówki i zamrażarki do monitorowania temperatur',
+      done: !!data?.hasRegisteredDevices,
+      href: '/temperatury',
+      ctaLabel: 'Dodaj urządzenie',
+    },
+    {
+      id: 'reading',
+      label: 'Zarejestruj pierwszy odczyt',
+      description: 'Wykonaj pierwszy pomiar temperatury i zapisz go w systemie',
+      done: !!data?.hasTemperatureLog,
+      href: '/temperatury',
+      ctaLabel: 'Zapisz odczyt',
+    },
+  ]
 
   const today = new Date()
   const dateStrRaw = today.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
@@ -98,9 +141,9 @@ export default async function DashboardPage() {
 
   if (!locationId) {
     return (
-      <div className="card border-dashed border-2 border-gray-200 text-center py-16">
-        <p className="text-gray-500 mb-4">Najpierw skonfiguruj swój lokal</p>
-        <Link href="/ustawienia/lokale" className="btn-primary inline-block">Dodaj lokal</Link>
+      <div className="space-y-5">
+        <PageHeader title="Witaj w HACCPro" subtitle={dateStr} />
+        <GettingStarted steps={onboardingSteps} />
       </div>
     )
   }
@@ -118,6 +161,8 @@ export default async function DashboardPage() {
           )
         }
       />
+
+      <GettingStarted steps={onboardingSteps} />
 
       {/* Priorytety na dziś */}
       {data && data.tempAlarms > 0 && (
