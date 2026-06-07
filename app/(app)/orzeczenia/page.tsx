@@ -12,6 +12,7 @@ import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
 import type { CertScanResult } from '@/app/api/scan-certificate/route'
 
 interface MedRecord {
@@ -357,10 +358,7 @@ export default function OrzeczenicaPage() {
           </div>
         </div>
       ) : (
-        <div className="card border-dashed border-2 border-gray-200 text-center py-12">
-          <Stethoscope size={32} className="mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-500">Brak orzeczeń. Dodaj pierwsze orzeczenie powyżej.</p>
-        </div>
+        <EmptyState icon={Stethoscope} title="Brak orzeczeń. Dodaj pierwsze orzeczenie powyżej." />
       )}
     </div>
   )

@@ -9,6 +9,7 @@ import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
 
 const TOPICS = [
   'Zasady HACCP', 'Higiena osobista', 'Alergie pokarmowe',
@@ -171,10 +172,7 @@ export default function SzkoleniaPage() {
           </div>
         </div>
       ) : (
-        <div className="card border-dashed border-2 border-gray-200 text-center py-12">
-          <GraduationCap size={32} className="mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-500">Brak wpisów szkoleń. Dodaj pierwsze szkolenie powyżej.</p>
-        </div>
+        <EmptyState icon={GraduationCap} title="Brak wpisów szkoleń. Dodaj pierwsze szkolenie powyżej." />
       )}
     </div>
   )

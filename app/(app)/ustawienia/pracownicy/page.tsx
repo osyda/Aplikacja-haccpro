@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { ChevronLeft, Users, Crown, User, ChevronDown, ChevronUp, Check, Save, Loader2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { EmptyState } from '@/components/ui/empty-state'
 import {
   resolvePermissions, isOwnerRole,
   DEFAULT_STAFF_PERMISSIONS, OWNER_PERMISSIONS,
@@ -426,10 +427,7 @@ export default function PracownicyPage() {
           })}
         </div>
       ) : (
-        <div className="card border-dashed border-2 border-gray-200 text-center py-12">
-          <Users size={32} className="mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-500">Brak pracowników w organizacji</p>
-        </div>
+        <EmptyState icon={Users} title="Brak pracowników w organizacji" />
       )}
 
       {isCurrentOwner && <InviteForm locations={locations} />}

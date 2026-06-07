@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Bug, Plus, ChevronDown, ChevronUp } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
 
 const AREAS = ['Kuchnia', 'Magazyn', 'Sala', 'Toalety', 'Zaplecze', 'Zewnętrze']
 const RESULTS = ['Brak szkodników', 'Ślady aktywności', 'Znaleziono szkodniki', 'Pułapki puste', 'Pułapki z połowem']
@@ -133,10 +134,7 @@ export default function DddPage() {
           </div>
         </div>
       ) : (
-        <div className="card border-dashed border-2 border-gray-200 text-center py-12">
-          <Bug size={32} className="mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-500">Brak wpisów kontroli DDD. Dodaj pierwszą kontrolę powyżej.</p>
-        </div>
+        <EmptyState icon={Bug} title="Brak wpisów kontroli DDD. Dodaj pierwszą kontrolę powyżej." />
       )}
     </div>
   )
