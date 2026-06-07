@@ -11,6 +11,7 @@ import {
 import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { PageHeader } from '@/components/ui/page-header'
 import type { CertScanResult } from '@/app/api/scan-certificate/route'
 
 interface MedRecord {
@@ -158,10 +159,7 @@ export default function OrzeczenicaPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Orzeczenia lekarskie</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Rejestr orzeczeń do celów sanitarno-epidemiologicznych</p>
-      </div>
+      <PageHeader title="Orzeczenia lekarskie" subtitle="Rejestr orzeczeń do celów sanitarno-epidemiologicznych" />
 
       {/* Urgent alert */}
       {urgent.length > 0 && (

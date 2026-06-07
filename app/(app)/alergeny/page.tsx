@@ -1,4 +1,5 @@
 import { Apple } from 'lucide-react'
+import { PageHeader } from '@/components/ui/page-header'
 
 const ALLERGENS = [
   { id: 1, name: 'Gluten', desc: 'Zboża zawierające gluten (pszenica, żyto, jęczmień, owies)', emoji: '🌾' },
@@ -20,10 +21,7 @@ const ALLERGENS = [
 export default function AlergenPage() {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Alergeny</h1>
-        <p className="text-sm text-gray-500 mt-0.5">14 alergenów wg rozporządzenia UE 1169/2011</p>
-      </div>
+      <PageHeader title="Alergeny" subtitle="14 alergenów wg rozporządzenia UE 1169/2011" />
 
       <div className="card">
         <p className="text-sm text-gray-600 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">

@@ -8,6 +8,7 @@ import { GraduationCap, Plus, ChevronDown, ChevronUp, Users, AlertTriangle } fro
 import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { PageHeader } from '@/components/ui/page-header'
 
 const TOPICS = [
   'Zasady HACCP', 'Higiena osobista', 'Alergie pokarmowe',
@@ -81,10 +82,7 @@ export default function SzkoleniaPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Szkolenia pracowników</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Rejestr szkoleń z zakresu HACCP i higieny</p>
-      </div>
+      <PageHeader title="Szkolenia pracowników" subtitle="Rejestr szkoleń z zakresu HACCP i higieny" />
 
       {alerts.length > 0 && (
         <div className="card border-orange-200 bg-orange-50">
@@ -104,7 +102,7 @@ export default function SzkoleniaPage() {
       <div className="card">
         <button type="button" onClick={() => setExpanded(!expanded)} className="w-full flex items-center justify-between text-left">
           <div className="flex items-center gap-2">
-            <div className="bg-indigo-500 p-1.5 rounded-lg"><Plus size={14} className="text-white" /></div>
+            <div className="bg-brand-navy p-1.5 rounded-lg"><Plus size={14} className="text-white" /></div>
             <span className="font-semibold text-gray-900">Dodaj szkolenie</span>
           </div>
           {expanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
@@ -118,7 +116,7 @@ export default function SzkoleniaPage() {
                 {TOPICS.map((t) => (
                   <button key={t} type="button" onClick={() => setForm((p) => ({ ...p, topic: t }))}
                     className={cn('px-3 py-1.5 rounded-lg text-sm border transition-colors',
-                      form.topic === t ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-medium' : 'border-gray-200 hover:border-gray-300')}>
+                      form.topic === t ? 'border-brand-navy bg-brand-navy/5 text-brand-navy font-medium' : 'border-gray-200 hover:border-gray-300')}>
                     {t}
                   </button>
                 ))}

@@ -84,7 +84,7 @@ export default async function DeviceHistoryPage({ params, searchParams }: PagePr
         </Link>
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Thermometer size={22} className="text-blue-500" />
+            <Thermometer size={22} className="text-brand-navy" />
             {deviceName}
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">{range.label} — {logs?.length ?? 0} wpisów</p>

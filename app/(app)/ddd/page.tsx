@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Bug, Plus, ChevronDown, ChevronUp } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
+import { PageHeader } from '@/components/ui/page-header'
 
 const AREAS = ['Kuchnia', 'Magazyn', 'Sala', 'Toalety', 'Zaplecze', 'Zewnętrze']
 const RESULTS = ['Brak szkodników', 'Ślady aktywności', 'Znaleziono szkodniki', 'Pułapki puste', 'Pułapki z połowem']
@@ -64,15 +65,12 @@ export default function DddPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Kontrola DDD</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Rejestr deratyzacji, dezynsekcji i dezynfekcji</p>
-      </div>
+      <PageHeader title="Kontrola DDD" subtitle="Rejestr deratyzacji, dezynsekcji i dezynfekcji" />
 
       <div className="card">
         <button type="button" onClick={() => setExpanded(!expanded)} className="w-full flex items-center justify-between text-left">
           <div className="flex items-center gap-2">
-            <div className="bg-green-700 p-1.5 rounded-lg"><Plus size={14} className="text-white" /></div>
+            <div className="bg-brand-navy p-1.5 rounded-lg"><Plus size={14} className="text-white" /></div>
             <span className="font-semibold text-gray-900">Dodaj kontrolę DDD</span>
           </div>
           {expanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}

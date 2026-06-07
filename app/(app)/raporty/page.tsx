@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { FileText, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { PageHeader } from '@/components/ui/page-header'
 
 const MODULES = [
   { id: 'temperatury', label: 'Rejestr temperatur' },
@@ -65,10 +66,7 @@ export default function RaportyPage() {
 
   return (
     <div className="max-w-lg space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Raporty PDF</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Generuj raporty dla Sanepidu i własnej dokumentacji</p>
-      </div>
+      <PageHeader title="Raporty PDF" subtitle="Generuj raporty dla Sanepidu i własnej dokumentacji" />
 
       <div className="card space-y-5">
         <div>
