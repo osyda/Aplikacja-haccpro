@@ -357,7 +357,7 @@ export default function PracownicyPage() {
 
   const ROLE_CONFIG: Record<string, { label: string; cls: string }> = {
     owner:   { label: 'Właściciel', cls: 'text-yellow-700 bg-yellow-50' },
-    manager: { label: 'Kierownik',  cls: 'text-blue-700 bg-blue-50' },
+    manager: { label: 'Kierownik',  cls: 'text-brand-navy bg-brand-navy/10' },
     staff:   { label: 'Pracownik',  cls: 'text-gray-600 bg-gray-100' },
   }
 

@@ -40,9 +40,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     profile?.permissions as Partial<AppPermissions> | null,
   )
 
-  const [{ data: allLocations }, { count: openNonconformities }] = await Promise.all([
+  const [{ data: allLocations }, { count: openNonconformities }, { data: recentAlerts }] = await Promise.all([
     supabase.from('locations').select('id, name').eq('org_id', profile?.org_id ?? '').order('name'),
     supabase.from('nonconformities').select('id', { count: 'exact', head: true }).eq('location_id', currentLocationId).eq('status', 'open'),
+    supabase.from('nonconformities').select('id, description, source, created_at').eq('location_id', currentLocationId).eq('status', 'open').order('created_at', { ascending: false }).limit(5),
   ])
 
   // Staff can only see their own location — only owners/managers can switch
@@ -64,6 +65,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         locations={visibleLocations}
         currentLocationId={currentLocationId}
         isSuperadmin={isSuperadmin}
+        alertCount={openNonconformities ?? 0}
+        alerts={recentAlerts ?? []}
       />
       <main className="lg:ml-64 pt-14 pb-16 lg:pb-0 min-h-screen">
         <div className="p-4 md:p-6 max-w-5xl">

@@ -3,13 +3,14 @@
 import { useState, useRef, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { LogOut, MapPin, Bell, ChevronDown, Check, Building2, Shield } from 'lucide-react'
+import { LogOut, MapPin, Bell, ChevronDown, Check, Building2, Shield, Thermometer, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
-import { formatDate } from '@/lib/utils'
+import { formatDate, formatDateTime } from '@/lib/utils'
 import { MobileNav } from './mobile-nav'
 import { cn } from '@/lib/utils'
 
 interface Location { id: string; name: string }
+interface Alert { id: string; description: string; source: string; created_at: string }
 
 interface TopbarProps {
   locationName?: string
@@ -17,6 +18,8 @@ interface TopbarProps {
   locations?: Location[]
   currentLocationId?: string
   isSuperadmin?: boolean
+  alertCount?: number
+  alerts?: Alert[]
 }
 
 export function Topbar({
@@ -25,20 +28,27 @@ export function Topbar({
   locations = [],
   currentLocationId = '',
   isSuperadmin = false,
+  alertCount = 0,
+  alerts = [],
 }: TopbarProps) {
   const router = useRouter()
   const supabase = createClient()
   const [showSwitcher, setShowSwitcher] = useState(false)
+  const [showAlerts, setShowAlerts] = useState(false)
   const [switching, setSwitching] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const alertsRef = useRef<HTMLDivElement>(null)
 
   const hasMultiple = locations.length > 1
 
-  // Close dropdown when clicking outside
+  // Close dropdowns when clicking outside
   useEffect(() => {
     function handler(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setShowSwitcher(false)
+      }
+      if (alertsRef.current && !alertsRef.current.contains(e.target as Node)) {
+        setShowAlerts(false)
       }
     }
     document.addEventListener('mousedown', handler)
@@ -139,9 +149,66 @@ export function Topbar({
             <Shield size={16} />
           </Link>
         )}
-        <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-          <Bell size={16} />
-        </button>
+        <div className="relative" ref={alertsRef}>
+          <button
+            onClick={() => setShowAlerts(!showAlerts)}
+            className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <Bell size={16} />
+            {alertCount > 0 && (
+              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
+            )}
+          </button>
+
+          {showAlerts && (
+            <div className="absolute top-full right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-50 w-80 max-w-[90vw] overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
+                <p className="text-sm font-bold text-gray-900">Alerty</p>
+                {alertCount > 0 && (
+                  <span className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+                    {alertCount} {alertCount === 1 ? 'otwarta' : 'otwarte'}
+                  </span>
+                )}
+              </div>
+
+              {alerts.length > 0 ? (
+                <div className="divide-y divide-gray-50 max-h-80 overflow-y-auto">
+                  {alerts.map(a => {
+                    const isAlarm = a.source === 'temperature_alarm'
+                    return (
+                      <Link
+                        key={a.id}
+                        href="/niezgodnosci"
+                        onClick={() => setShowAlerts(false)}
+                        className="flex items-start gap-2.5 px-4 py-3 hover:bg-gray-50 transition-colors"
+                      >
+                        <div className={cn('p-1.5 rounded-lg shrink-0 mt-0.5', isAlarm ? 'bg-red-100' : 'bg-orange-100')}>
+                          {isAlarm
+                            ? <Thermometer size={13} className="text-red-600" />
+                            : <AlertTriangle size={13} className="text-orange-600" />}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm text-gray-800 line-clamp-2">{a.description}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{formatDateTime(a.created_at)}</p>
+                        </div>
+                      </Link>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="px-4 py-6 text-sm text-gray-400 text-center">Brak aktywnych alertów</p>
+              )}
+
+              <Link
+                href="/niezgodnosci"
+                onClick={() => setShowAlerts(false)}
+                className="block px-4 py-2.5 text-xs font-semibold text-brand-navy hover:bg-gray-50 text-center border-t border-gray-100 transition-colors"
+              >
+                Zobacz wszystkie niezgodności →
+              </Link>
+            </div>
+          )}
+        </div>
         {userEmail && (
           <span className="text-sm text-gray-500 hidden lg:block">{userEmail}</span>
         )}
