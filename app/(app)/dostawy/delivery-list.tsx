@@ -396,7 +396,7 @@ export function DeliveryList({ logs, suppMap, usersMap }: Props) {
   const stats = [
     {
       label: 'Dzisiaj', value: todayLogs.length, Icon: Calendar,
-      color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100',
+      color: 'text-brand-navy', bg: 'bg-brand-navy/5', border: 'border-brand-navy/10',
     },
     {
       label: 'OK', value: todayOk, Icon: CheckCircle2,
@@ -438,7 +438,7 @@ export function DeliveryList({ logs, suppMap, usersMap }: Props) {
             placeholder="Szukaj produktu, dostawcy, faktury..."
             value={query}
             onChange={e => setQuery(e.target.value)}
-            className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-400 transition-colors"
+            className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-green/20 focus:border-brand-green transition-colors"
           />
           {query && (
             <button
@@ -459,7 +459,7 @@ export function DeliveryList({ logs, suppMap, usersMap }: Props) {
               className={cn(
                 'shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
                 filter === f.id
-                  ? 'bg-green-600 text-white border-green-600 shadow-sm'
+                  ? 'bg-brand-navy text-white border-brand-navy shadow-sm'
                   : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
               )}
             >

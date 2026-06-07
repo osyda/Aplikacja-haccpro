@@ -49,13 +49,13 @@ function StepIndicator({ step, total }: { step: number; total: number }) {
             <div className="flex flex-col items-center">
               <div className={cn(
                 'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all',
-                done ? 'bg-green-500 border-green-500 text-white'
-                  : active ? 'bg-blue-600 border-blue-600 text-white'
+                done ? 'bg-brand-green border-brand-green text-white'
+                  : active ? 'bg-brand-navy border-brand-navy text-white'
                   : 'bg-white border-gray-200 text-gray-400'
               )}>
                 {done ? <CheckCircle2 size={14} /> : num}
               </div>
-              <span className={cn('text-[10px] mt-1 font-medium', active ? 'text-blue-600' : done ? 'text-green-600' : 'text-gray-400')}>
+              <span className={cn('text-[10px] mt-1 font-medium', active ? 'text-brand-navy' : done ? 'text-brand-green-dark' : 'text-gray-400')}>
                 {label}
               </span>
             </div>
@@ -317,9 +317,9 @@ export default function NowaDostawaPage() {
                     onClick={() => setForm(p => ({ ...p, supplier: sel ? '' : s.alias }))}
                     className={cn(
                       'p-3 rounded-xl border-2 text-left transition-all min-h-[72px]',
-                      sel ? 'border-blue-500 bg-blue-50' : 'border-gray-100 bg-white hover:border-gray-200'
+                      sel ? 'border-brand-navy bg-brand-navy/5' : 'border-gray-100 bg-white hover:border-gray-200'
                     )}>
-                    <p className={cn('font-bold text-sm leading-tight', sel ? 'text-blue-700' : 'text-gray-900')}>{s.alias}</p>
+                    <p className={cn('font-bold text-sm leading-tight', sel ? 'text-brand-navy' : 'text-gray-900')}>{s.alias}</p>
                     {s.full_name && <p className="text-xs text-gray-500 mt-0.5 leading-tight truncate">{s.full_name}</p>}
                     {s.nip && <p className="text-xs text-gray-400 font-mono mt-0.5">NIP: {s.nip}</p>}
                   </button>
@@ -370,7 +370,7 @@ export default function NowaDostawaPage() {
               </div>
               <div className="flex gap-2">
                 <button type="button" onClick={saveNewSupplier}
-                  className="px-4 py-2 bg-brand-green text-white text-sm font-medium rounded-lg hover:bg-green-700">
+                  className="px-4 py-2 bg-brand-green text-white text-sm font-medium rounded-lg hover:bg-brand-green-dark">
                   Zapisz dostawcę
                 </button>
                 <button type="button" onClick={() => { setShowAddSupplier(false); setNewSupp(EMPTY_NEW_SUPP) }}
@@ -387,7 +387,7 @@ export default function NowaDostawaPage() {
             className={cn(
               'w-full flex items-center justify-center gap-2 py-4 rounded-xl text-sm font-bold transition-colors min-h-[56px]',
               canGoNext()
-                ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                ? 'bg-brand-green hover:bg-brand-green-dark text-white'
                 : 'bg-gray-100 text-gray-400 cursor-not-allowed'
             )}
           >
@@ -433,7 +433,7 @@ export default function NowaDostawaPage() {
             <button onClick={() => setStep(3)} disabled={!canGoNext()}
               className={cn(
                 'flex-[3] flex items-center justify-center gap-2 py-4 rounded-xl text-sm font-bold transition-colors min-h-[56px]',
-                canGoNext() ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                canGoNext() ? 'bg-brand-green hover:bg-brand-green-dark text-white' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
               )}>
               Dalej <ChevronRight size={16} />
             </button>
@@ -499,7 +499,7 @@ export default function NowaDostawaPage() {
             <button onClick={() => setStep(4)} disabled={!canGoNext()}
               className={cn(
                 'flex-[3] flex items-center justify-center gap-2 py-4 rounded-xl text-sm font-bold transition-colors min-h-[56px]',
-                canGoNext() ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                canGoNext() ? 'bg-brand-green hover:bg-brand-green-dark text-white' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
               )}>
               Dalej <ChevronRight size={16} />
             </button>
@@ -607,7 +607,7 @@ export default function NowaDostawaPage() {
                 'flex-[3] flex items-center justify-center gap-2 py-4 rounded-xl text-sm font-bold transition-colors min-h-[56px]',
                 loading || form.quality_ok === null || (!form.quality_ok && !form.nonconformity_desc.trim())
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-brand-green hover:bg-green-700 text-white'
+                  : 'bg-brand-green hover:bg-brand-green-dark text-white'
               )}>
               {loading ? 'Zapisywanie…' : <><CheckCircle2 size={16} /> Zapisz dostawę</>}
             </button>

@@ -288,7 +288,7 @@ export default function MyCiePage() {
                   onClick={() => applyCombo(a, ag, dept)}
                   className={cn(
                     'w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all text-left',
-                    isChosen ? 'border-green-400 bg-green-50' : 'border-gray-100 bg-white hover:border-cyan-200 hover:bg-cyan-50'
+                    isChosen ? 'border-green-400 bg-green-50' : 'border-gray-100 bg-white hover:border-brand-navy/20 hover:bg-brand-navy/5'
                   )}
                 >
                   <span className="text-sm">
@@ -321,7 +321,7 @@ export default function MyCiePage() {
               {canManageAreas && (
                 <button type="button"
                   onClick={() => { setShowAddArea(!showAddArea); setCustomAreaInput('') }}
-                  className="text-xs text-cyan-600 hover:underline">
+                  className="text-xs text-brand-navy hover:underline">
                   {showAddArea ? 'Anuluj' : '+ Inny obszar'}
                 </button>
               )}
@@ -339,7 +339,7 @@ export default function MyCiePage() {
                 />
                 <button type="button"
                   onClick={() => { setArea(customAreaInput.trim()); setShowAddArea(false) }}
-                  className="px-3 py-2 bg-cyan-600 text-white text-sm rounded-lg hover:bg-cyan-700">
+                  className="px-3 py-2 bg-brand-navy text-white text-sm rounded-lg hover:bg-brand-navy-light">
                   Użyj
                 </button>
               </div>
@@ -372,7 +372,7 @@ export default function MyCiePage() {
               {canManageAreas && (
                 <button type="button"
                   onClick={() => { setShowAddAgent(!showAddAgent); setCustomAgentInput('') }}
-                  className="text-xs text-cyan-600 hover:underline">
+                  className="text-xs text-brand-navy hover:underline">
                   {showAddAgent ? 'Anuluj' : '+ Inny środek'}
                 </button>
               )}
@@ -390,7 +390,7 @@ export default function MyCiePage() {
                 />
                 <button type="button"
                   onClick={() => { setAgent(customAgentInput.trim()); setShowAddAgent(false) }}
-                  className="px-3 py-2 bg-cyan-600 text-white text-sm rounded-lg hover:bg-cyan-700">
+                  className="px-3 py-2 bg-brand-navy text-white text-sm rounded-lg hover:bg-brand-navy-light">
                   Użyj
                 </button>
               </div>
@@ -447,7 +447,7 @@ export default function MyCiePage() {
             disabled={loading}
             className={cn(
               'w-full py-4 rounded-xl text-sm font-bold transition-colors min-h-[56px]',
-              loading ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-cyan-600 hover:bg-cyan-700 text-white'
+              loading ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-brand-green hover:bg-brand-green-dark text-white'
             )}
           >
             {loading ? 'Zapisywanie…' : 'Zapisz wpis mycia'}

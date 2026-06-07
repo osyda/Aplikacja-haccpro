@@ -53,7 +53,7 @@ function ResolveForm({ item, onResolved }: { item: Nonconformity; onResolved: ()
       <button
         onClick={handleResolve}
         disabled={saving}
-        className="flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60"
+        className="flex items-center gap-1.5 px-4 py-2 bg-brand-green hover:bg-brand-green-dark text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60"
       >
         {saving ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
         {saving ? 'Zapisywanie…' : 'Zamknij niezgodność'}
