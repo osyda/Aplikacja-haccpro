@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
+import { PageHeader } from '@/components/ui/page-header'
 import { DeliveryList } from './delivery-list'
 
 export default async function DostawyPage() {
@@ -39,16 +40,16 @@ export default async function DostawyPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Przyjęcie dostaw</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Rejestr przyjętych produktów i surowców</p>
-        </div>
-        <Link href="/dostawy/nowa" className="btn-primary flex items-center gap-2">
-          <Plus size={16} />
-          Nowa dostawa
-        </Link>
-      </div>
+      <PageHeader
+        title="Przyjęcie dostaw"
+        subtitle="Rejestr przyjętych produktów i surowców"
+        action={
+          <Link href="/dostawy/nowa" className="btn-primary flex items-center gap-2">
+            <Plus size={16} />
+            Nowa dostawa
+          </Link>
+        }
+      />
 
       <DeliveryList logs={logs} suppMap={suppMap} usersMap={usersMap} />
     </div>

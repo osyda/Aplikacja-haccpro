@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface Supplier { alias: string; full_name: string | null; nip: string | null }
 
@@ -486,21 +487,19 @@ export function DeliveryList({ logs, suppMap, usersMap }: Props) {
           </p>
         </div>
       ) : (
-        <div className="border-2 border-dashed border-gray-200 rounded-2xl text-center py-14">
-          <Truck size={36} className="mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-600 font-semibold mb-1">Brak dostaw</p>
-          <p className="text-sm text-gray-400 mb-5">
-            {query || filter !== 'all'
-              ? 'Nie znaleziono dostaw spełniających kryteria.'
-              : 'Nie dodano jeszcze żadnej dostawy dla tego lokalu.'}
-          </p>
-          {!query && filter === 'all' && (
+        <EmptyState
+          icon={Truck}
+          title="Brak dostaw"
+          description={query || filter !== 'all'
+            ? 'Nie znaleziono dostaw spełniających kryteria.'
+            : 'Nie dodano jeszcze żadnej dostawy dla tego lokalu.'}
+          action={!query && filter === 'all' && (
             <Link href="/dostawy/nowa" className="btn-primary inline-flex items-center gap-2">
               <Plus size={14} />
               Dodaj pierwszą dostawę
             </Link>
           )}
-        </div>
+        />
       )}
 
       {/* Detail modal */}

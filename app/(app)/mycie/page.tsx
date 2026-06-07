@@ -3,9 +3,11 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Droplets, Plus, Paperclip, X, ChevronDown, ChevronUp, Check } from 'lucide-react'
-import { formatDateTime } from '@/lib/utils'
+import { formatDateTime, getTodayStart } from '@/lib/utils'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
 import { resolvePermissions } from '@/lib/permissions'
 import type { AppPermissions } from '@/lib/permissions'
 
@@ -78,10 +80,6 @@ function deriveDept(area: string): Dept | null {
   if (KITCHEN_SET.has(area)) return 'kitchen_back'
   if (HALL_SET.has(area)) return 'service_hall'
   return LEGACY[area] ?? null
-}
-
-function getTodayStart() {
-  const d = new Date(); d.setHours(0, 0, 0, 0); return d.toISOString()
 }
 
 interface Log { id: string; area: string; agent: string; cleaned_at: string; notes: string | null; doc_url: string | null; recorded_by: string | null }
@@ -231,13 +229,10 @@ export default function MyCiePage() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Mycie i dezynfekcja</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          Dzisiaj: <span className="font-semibold text-gray-800">{todayLogs.length} wpisów</span>
-        </p>
-      </div>
+      <PageHeader
+        title="Mycie i dezynfekcja"
+        subtitle={`Dzisiaj: ${todayLogs.length} wpisów`}
+      />
 
       {/* Department tiles */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -457,11 +452,7 @@ export default function MyCiePage() {
 
       {/* Empty state */}
       {!dept && logs.length === 0 && (
-        <div className="card border-dashed border-2 border-gray-200 text-center py-12">
-          <Droplets size={32} className="mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-500 mb-1">Brak wpisów mycia.</p>
-          <p className="text-sm text-gray-400">Wybierz dział powyżej, aby dodać wpis.</p>
-        </div>
+        <EmptyState icon={Droplets} title="Brak wpisów mycia." description="Wybierz dział powyżej, aby dodać wpis." />
       )}
 
       {/* Today's entries */}

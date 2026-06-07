@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/badge'
+import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
 import { AlertTriangle, Plus, ChevronDown, ChevronUp, CheckCircle2, Thermometer, Loader2 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
@@ -197,10 +199,7 @@ export default function NiezgodnosciPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Niezgodności</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Rejestr niezgodności i działań korygujących</p>
-      </div>
+      <PageHeader title="Niezgodności" subtitle="Rejestr niezgodności i działań korygujących" />
 
       {alarmCount > 0 && (
         <div className="flex items-start gap-3 p-4 rounded-xl border-2 border-red-200 bg-red-50">
@@ -279,10 +278,7 @@ export default function NiezgodnosciPage() {
       )}
 
       {items.length === 0 && (
-        <div className="card border-dashed border-2 border-gray-200 text-center py-12">
-          <AlertTriangle size={32} className="mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-500">Brak niezgodności. Dobrze!</p>
-        </div>
+        <EmptyState icon={AlertTriangle} title="Brak niezgodności. Dobrze!" />
       )}
     </div>
   )
