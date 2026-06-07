@@ -179,7 +179,7 @@ function OrgDetailModal({ org, onClose, onDeleted }: { org: OrgRow; onClose: () 
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white w-full max-w-xl h-full overflow-y-auto shadow-2xl flex flex-col">
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-[#1B2E4B] text-white px-6 py-4 flex items-center gap-3">
+        <div className="sticky top-0 z-10 bg-brand-navy text-white px-6 py-4 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center font-bold text-lg shrink-0">
             {org.name.slice(0, 1).toUpperCase()}
           </div>
@@ -473,7 +473,7 @@ function AddClientModal({ onClose, onAdded }: { onClose: () => void; onAdded: (o
             </div>
             <button
               onClick={onClose}
-              className="w-full py-2.5 rounded-xl bg-[#1B2E4B] text-white text-sm font-semibold hover:bg-[#243d63] transition-colors"
+              className="w-full py-2.5 rounded-xl bg-brand-navy text-white text-sm font-semibold hover:bg-brand-navy-light transition-colors"
             >
               Zamknij
             </button>
@@ -549,7 +549,7 @@ function AddClientModal({ onClose, onAdded }: { onClose: () => void; onAdded: (o
               <button
                 type="submit"
                 disabled={saving}
-                className="flex-1 py-2.5 rounded-xl bg-[#1B2E4B] text-white text-sm font-semibold hover:bg-[#243d63] transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                className="flex-1 py-2.5 rounded-xl bg-brand-navy text-white text-sm font-semibold hover:bg-brand-navy-light transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
               >
                 {saving ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                 {saving ? 'Tworzę…' : 'Utwórz i wyślij zaproszenie'}
@@ -707,7 +707,7 @@ export function OrgDashboard({ initialOrgs }: { initialOrgs: OrgRow[] }) {
               className={cn(
                 'shrink-0 px-3 py-2 rounded-xl text-xs font-semibold border transition-all',
                 filter === f.id
-                  ? 'bg-[#1B2E4B] text-white border-[#1B2E4B]'
+                  ? 'bg-brand-navy text-white border-brand-navy'
                   : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
               )}
             >
@@ -760,7 +760,7 @@ export function OrgDashboard({ initialOrgs }: { initialOrgs: OrgRow[] }) {
                     >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-lg bg-[#1B2E4B] flex items-center justify-center text-white font-bold text-xs shrink-0">
+                          <div className="w-8 h-8 rounded-lg bg-brand-navy flex items-center justify-center text-white font-bold text-xs shrink-0">
                             {org.name.slice(0, 1).toUpperCase()}
                           </div>
                           <div>
@@ -846,7 +846,7 @@ export function OrgDashboard({ initialOrgs }: { initialOrgs: OrgRow[] }) {
                               <button
                                 onClick={() => setDetailOrg(org)}
                                 title="Szczegóły organizacji"
-                                className="p-1.5 rounded-lg text-gray-400 hover:text-[#1B2E4B] hover:bg-gray-100 transition-colors"
+                                className="p-1.5 rounded-lg text-gray-400 hover:text-brand-navy hover:bg-gray-100 transition-colors"
                               >
                                 <Eye size={15} />
                               </button>
@@ -929,7 +929,7 @@ export function OrgDashboard({ initialOrgs }: { initialOrgs: OrgRow[] }) {
               <button
                 onClick={saveNotes}
                 disabled={loading === notesOrg.id}
-                className="flex-1 py-2.5 rounded-xl bg-[#1B2E4B] text-white text-sm font-semibold hover:bg-[#243d63] transition-colors disabled:opacity-60"
+                className="flex-1 py-2.5 rounded-xl bg-brand-navy text-white text-sm font-semibold hover:bg-brand-navy-light transition-colors disabled:opacity-60"
               >
                 {loading === notesOrg.id ? 'Zapisuję…' : 'Zapisz notatkę'}
               </button>
