@@ -4,6 +4,8 @@ import { Sidebar } from '@/components/layout/sidebar'
 import { Topbar } from '@/components/layout/topbar'
 import { BottomNav } from '@/components/layout/bottom-nav'
 import { ToastProvider } from '@/components/ui/toast-provider'
+import { ServiceWorkerRegister } from '@/components/pwa/sw-register'
+import { InstallPrompt } from '@/components/pwa/install-prompt'
 import { resolvePermissions } from '@/lib/permissions'
 import type { AppPermissions } from '@/lib/permissions'
 
@@ -58,6 +60,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen bg-gray-50">
       <ToastProvider />
+      <ServiceWorkerRegister />
+      <InstallPrompt />
       <Sidebar permissions={permissions} openNonconformities={openNonconformities ?? 0} />
       <Topbar
         locationName={locationName}
