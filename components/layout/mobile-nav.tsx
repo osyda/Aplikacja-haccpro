@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useState } from 'react'
+import { Fragment } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Dialog, Transition } from '@headlessui/react'
@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { useMobileNav } from './mobile-nav-context'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -29,7 +30,7 @@ const navItems = [
 ]
 
 export function MobileNav({ locationName }: { locationName?: string }) {
-  const [open, setOpen] = useState(false)
+  const { open, setOpen } = useMobileNav()
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()

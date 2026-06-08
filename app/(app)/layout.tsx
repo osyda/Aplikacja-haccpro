@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Topbar } from '@/components/layout/topbar'
 import { BottomNav } from '@/components/layout/bottom-nav'
+import { MobileNavProvider } from '@/components/layout/mobile-nav-context'
 import { ToastProvider } from '@/components/ui/toast-provider'
 import { ServiceWorkerRegister } from '@/components/pwa/sw-register'
 import { InstallPrompt } from '@/components/pwa/install-prompt'
@@ -58,26 +59,28 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const isSuperadmin = !!(user.email && SUPERADMIN_EMAIL.split(',').map(e => e.toLowerCase().trim()).includes(user.email.toLowerCase().trim()))
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <ToastProvider />
-      <ServiceWorkerRegister />
-      <InstallPrompt />
-      <Sidebar permissions={permissions} openNonconformities={openNonconformities ?? 0} />
-      <Topbar
-        locationName={locationName}
-        userEmail={user.email}
-        locations={visibleLocations}
-        currentLocationId={currentLocationId}
-        isSuperadmin={isSuperadmin}
-        alertCount={openNonconformities ?? 0}
-        alerts={recentAlerts ?? []}
-      />
-      <main className="lg:ml-64 pt-14 pb-16 lg:pb-0 min-h-screen">
-        <div className="p-4 md:p-6 max-w-5xl">
-          {children}
-        </div>
-      </main>
-      <BottomNav permissions={permissions} />
-    </div>
+    <MobileNavProvider>
+      <div className="min-h-screen bg-gray-50">
+        <ToastProvider />
+        <ServiceWorkerRegister />
+        <InstallPrompt />
+        <Sidebar permissions={permissions} openNonconformities={openNonconformities ?? 0} />
+        <Topbar
+          locationName={locationName}
+          userEmail={user.email}
+          locations={visibleLocations}
+          currentLocationId={currentLocationId}
+          isSuperadmin={isSuperadmin}
+          alertCount={openNonconformities ?? 0}
+          alerts={recentAlerts ?? []}
+        />
+        <main className="lg:ml-64 pt-14 pb-16 lg:pb-0 min-h-screen">
+          <div className="p-4 md:p-6 max-w-5xl">
+            {children}
+          </div>
+        </main>
+        <BottomNav permissions={permissions} />
+      </div>
+    </MobileNavProvider>
   )
 }
