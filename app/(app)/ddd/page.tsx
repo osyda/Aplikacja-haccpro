@@ -39,6 +39,8 @@ export default function DddPage() {
 
   useEffect(() => { fetchLogs() }, [])
 
+  const inspectorSuggestions = Array.from(new Set(logs.map((l) => l.inspector))).filter(Boolean).sort((a, b) => a.localeCompare(b, 'pl'))
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
@@ -103,7 +105,14 @@ export default function DddPage() {
               </div>
             </div>
 
-            <Input label="Inspektor / firma DDD" placeholder="np. Jan Nowak / Firma DDD Sp. z o.o." value={form.inspector} onChange={(e) => setForm((p) => ({ ...p, inspector: e.target.value }))} required />
+            <div>
+              <label className="label">Inspektor / firma DDD</label>
+              <datalist id="inspector-suggestions">
+                {inspectorSuggestions.map((name) => <option key={name} value={name} />)}
+              </datalist>
+              <input className="input" list="inspector-suggestions" placeholder="np. Jan Nowak / Firma DDD Sp. z o.o."
+                value={form.inspector} onChange={(e) => setForm((p) => ({ ...p, inspector: e.target.value }))} required />
+            </div>
             <Input label="Podjęte działania" placeholder="np. Wymiana pułapek, oprysk insektycydem" value={form.action_taken} onChange={(e) => setForm((p) => ({ ...p, action_taken: e.target.value }))} />
             <Input label="Uwagi" placeholder="Dodatkowe informacje" value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} />
 

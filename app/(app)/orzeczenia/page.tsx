@@ -20,6 +20,7 @@ interface MedRecord {
   person_name: string
   certificate_type: string
   valid_until: string
+  pesel: string | null
   notes: string | null
   doc_url: string | null
 }
@@ -33,24 +34,6 @@ function StatusBadge({ validUntil }: { validUntil: string }) {
   if (days < 0) return <span className="text-xs font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded-full">Wygasło {Math.abs(days)}d temu</span>
   if (days <= 30) return <span className="text-xs font-medium text-orange-700 bg-orange-100 px-2 py-0.5 rounded-full">Wygasa za {days}d</span>
   return <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">Ważne {days}d</span>
-}
-
-// PESEL stored as first line of notes: "PESEL: XXXXXXXXXXX\nrest of notes"
-function encodePesel(pesel: string, notes: string): string | null {
-  const p = pesel.trim()
-  const n = notes.trim()
-  if (p && n) return `PESEL: ${p}\n${n}`
-  if (p) return `PESEL: ${p}`
-  return n || null
-}
-
-function parsePesel(raw: string | null): { pesel: string; notes: string } {
-  if (!raw) return { pesel: '', notes: '' }
-  if (raw.startsWith('PESEL: ')) {
-    const lines = raw.split('\n')
-    return { pesel: lines[0].replace('PESEL: ', '').trim(), notes: lines.slice(1).join('\n').trim() }
-  }
-  return { pesel: '', notes: raw }
 }
 
 export default function OrzeczenicaPage() {
@@ -140,7 +123,8 @@ export default function OrzeczenicaPage() {
       person_name: form.person_name,
       certificate_type: 'Do celów sanitarno-epidemiologicznych',
       valid_until: form.valid_until,
-      notes: encodePesel(form.pesel, form.notes),
+      pesel: form.pesel.trim() || null,
+      notes: form.notes.trim() || null,
       doc_url: docUrl,
       recorded_by: userId,
     })
@@ -322,20 +306,18 @@ export default function OrzeczenicaPage() {
         <div className="card">
           <h2 className="font-semibold text-gray-900 mb-3">Rejestr ({records.length})</h2>
           <div className="divide-y divide-gray-50">
-            {records.map((r) => {
-              const { pesel, notes: displayNotes } = parsePesel(r.notes)
-              return (
+            {records.map((r) => (
                 <div key={r.id} className="py-3 flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-0.5">
                       <p className="font-medium text-sm text-gray-900">{r.person_name}</p>
                       <StatusBadge validUntil={r.valid_until} />
                     </div>
-                    {pesel && (
-                      <p className="text-xs text-gray-500 font-mono mt-0.5">PESEL: {pesel}</p>
+                    {r.pesel && (
+                      <p className="text-xs text-gray-500 font-mono mt-0.5">PESEL: {r.pesel}</p>
                     )}
                     <p className="text-xs text-gray-400 mt-0.5">Ważne do: {formatDate(r.valid_until)}</p>
-                    {displayNotes && <p className="text-xs text-gray-400 mt-0.5">{displayNotes}</p>}
+                    {r.notes && <p className="text-xs text-gray-400 mt-0.5">{r.notes}</p>}
                   </div>
                   {r.doc_url ? (
                     <a
@@ -353,8 +335,7 @@ export default function OrzeczenicaPage() {
                     </div>
                   )}
                 </div>
-              )
-            })}
+            ))}
           </div>
         </div>
       ) : (

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { GraduationCap, Plus, ChevronDown, ChevronUp, Users, AlertTriangle } from 'lucide-react'
+import { GraduationCap, Plus, ChevronDown, ChevronUp, Users, AlertTriangle, X } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -41,19 +41,41 @@ function ExpiryBadge({ validUntil }: { validUntil: string | null }) {
 
 export default function SzkoleniaPage() {
   const [logs, setLogs] = useState<Log[]>([])
+  const [staff, setStaff] = useState<{ id: string; full_name: string }[]>([])
   const [expanded, setExpanded] = useState(false)
-  const [form, setForm] = useState({ topic: '', trainer: '', attendees: '', valid_until: '', notes: '' })
+  const [form, setForm] = useState({ topic: '', trainer: '', attendees: [] as string[], valid_until: '', notes: '' })
+  const [attendeeInput, setAttendeeInput] = useState('')
   const [loading, setLoading] = useState(false)
   const supabase = createClient()
 
   async function fetchLogs() {
     const { data: { user } } = await supabase.auth.getUser()
     const { data: profile } = await supabase.from('profiles').select('location_id').eq('id', user!.id).single()
-    const { data } = await supabase.from('training_logs').select('*').eq('location_id', profile?.location_id ?? '').order('trained_at', { ascending: false }).limit(30)
+    const locationId = profile?.location_id ?? ''
+    const [{ data }, { data: staffData }] = await Promise.all([
+      supabase.from('training_logs').select('*').eq('location_id', locationId).order('trained_at', { ascending: false }).limit(30),
+      supabase.from('profiles').select('id, full_name').eq('location_id', locationId).order('full_name'),
+    ])
     setLogs(data ?? [])
+    setStaff((staffData ?? []).filter((s): s is { id: string; full_name: string } => !!s.full_name))
   }
 
   useEffect(() => { fetchLogs() }, [])
+
+  function toggleAttendee(name: string) {
+    setForm((p) => ({
+      ...p,
+      attendees: p.attendees.includes(name) ? p.attendees.filter((a) => a !== name) : [...p.attendees, name],
+    }))
+  }
+
+  function addCustomAttendee() {
+    const name = attendeeInput.trim()
+    if (name && !form.attendees.includes(name)) {
+      setForm((p) => ({ ...p, attendees: [...p.attendees, name] }))
+    }
+    setAttendeeInput('')
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -61,20 +83,20 @@ export default function SzkoleniaPage() {
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     const { data: profile } = await supabase.from('profiles').select('location_id').eq('id', user!.id).single()
-    const attendees = form.attendees.split(',').map((s) => s.trim()).filter(Boolean)
     const { error } = await supabase.from('training_logs').insert({
       location_id: profile?.location_id ?? '',
       topic: form.topic,
       trainer: form.trainer,
       trained_at: new Date().toISOString(),
-      attendees,
+      attendees: form.attendees,
       valid_until: form.valid_until || null,
       notes: form.notes || null,
     })
     setLoading(false)
     if (error) { toast.error('Błąd zapisu: ' + error.message); return }
     toast.success('Szkolenie zapisane!')
-    setForm({ topic: '', trainer: '', attendees: '', valid_until: '', notes: '' })
+    setForm({ topic: '', trainer: '', attendees: [], valid_until: '', notes: '' })
+    setAttendeeInput('')
     setExpanded(false)
     fetchLogs()
   }
@@ -128,8 +150,43 @@ export default function SzkoleniaPage() {
 
             <Input label="Prowadzący / szkoleniowiec" placeholder="np. Anna Nowak, firma zewnętrzna"
               value={form.trainer} onChange={(e) => setForm((p) => ({ ...p, trainer: e.target.value }))} required />
-            <Input label="Uczestnicy (rozdziel przecinkami)" placeholder="Jan Kowalski, Maria Wiśniewska"
-              value={form.attendees} onChange={(e) => setForm((p) => ({ ...p, attendees: e.target.value }))} />
+            <div>
+              <p className="label">Uczestnicy</p>
+              {staff.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {staff.map((s) => (
+                    <button key={s.id} type="button" onClick={() => toggleAttendee(s.full_name)}
+                      className={cn('px-3 py-1.5 rounded-lg text-sm border transition-colors',
+                        form.attendees.includes(s.full_name) ? 'border-brand-navy bg-brand-navy/5 text-brand-navy font-medium' : 'border-gray-200 hover:border-gray-300')}>
+                      {s.full_name}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <input className="input flex-1 text-sm" placeholder="Dodaj inną osobę (np. spoza listy pracowników)"
+                  value={attendeeInput}
+                  onChange={(e) => setAttendeeInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomAttendee() } }} />
+                <button type="button" onClick={addCustomAttendee}
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:border-gray-300 transition-colors shrink-0">
+                  Dodaj
+                </button>
+              </div>
+              {form.attendees.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {form.attendees.map((name) => (
+                    <span key={name} className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-700 pl-2.5 pr-1.5 py-1 rounded-full">
+                      {name}
+                      <button type="button" onClick={() => setForm((p) => ({ ...p, attendees: p.attendees.filter((a) => a !== name) }))}
+                        className="text-gray-400 hover:text-gray-600">
+                        <X size={11} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <div>
               <label className="label">Ważność certyfikatu do (opcjonalnie)</label>
