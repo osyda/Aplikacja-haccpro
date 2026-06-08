@@ -127,13 +127,13 @@ export default function NowaDostawaPage() {
     return { locationId: profile?.location_id ?? '', userId: user!.id }
   }
 
-  async function handleScan(file: File) {
+  async function handleScan(files: File[]) {
     setScanning(true)
     setScanResult(null)
-    setFiles([file]) // pre-fill step 4 attachment with the scanned file (e.g. invoice page 1 — more pages can be added below)
+    setFiles(files) // pre-fill step 4 attachments with the scanned pages
     try {
       const fd = new FormData()
-      fd.append('file', file)
+      files.forEach(f => fd.append('files', f))
       const res = await fetch('/api/scan-invoice', { method: 'POST', body: fd })
       const json = await res.json()
       if (!res.ok) { toast.error(json.error ?? 'Błąd skanowania'); return }
@@ -292,16 +292,17 @@ export default function NowaDostawaPage() {
             ) : (
               <>
                 <Camera size={20} className="text-purple-400" />
-                <span className="text-sm font-medium text-gray-600">Zdjęcie, skan lub PDF faktury</span>
+                <span className="text-sm font-medium text-gray-600">Zdjęcia, skany lub PDF faktury — można wybrać kilka stron naraz</span>
               </>
             )}
             <input
               ref={scanRef}
               type="file"
               accept="image/*,.pdf"
+              multiple
               className="hidden"
               disabled={scanning}
-              onChange={e => { const f = e.target.files?.[0]; if (f) handleScan(f) }}
+              onChange={e => { const picked = Array.from(e.target.files ?? []); if (picked.length) handleScan(picked) }}
             />
           </label>
         ) : (
