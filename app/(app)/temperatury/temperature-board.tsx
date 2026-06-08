@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import {
   Thermometer, CheckCircle2, AlertCircle, Clock,
-  ArrowRight, Settings, ChevronRight, Trash2,
+  ArrowRight, Settings, ChevronRight, Trash2, Pencil,
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -26,6 +26,22 @@ function getDeviceStatus(d: DeviceWithStatus): 'ok' | 'alarm' | 'missing' | 'unc
   if (d.todayCount === 0) return 'missing'
   if (d.lastOk === false) return 'alarm'
   return 'ok'
+}
+
+function groupDevicesByZone(devices: DeviceWithStatus[]): { zone: string | null; devices: DeviceWithStatus[] }[] {
+  const map = new Map<string | null, DeviceWithStatus[]>()
+  for (const d of devices) {
+    const key = d.zone?.trim() || null
+    if (!map.has(key)) map.set(key, [])
+    map.get(key)!.push(d)
+  }
+  const groups = Array.from(map.entries()).map(([zone, devs]) => ({ zone, devices: devs }))
+  groups.sort((a, b) => {
+    if (a.zone === null) return 1
+    if (b.zone === null) return -1
+    return a.zone.localeCompare(b.zone, 'pl')
+  })
+  return groups
 }
 
 function guessQuickValues(min_ok: number, max_ok: number): number[] {
@@ -233,10 +249,14 @@ function QuickEntryModal({ device, locationId, onClose, onSaved }: QuickEntryMod
   )
 }
 
+interface ManagedDevice { id: string; name: string; min_ok: number; max_ok: number; zone: string | null }
+
 function DeviceManager({ locationId, onChanged }: { locationId: string; onChanged: () => void }) {
-  const [devices, setDevices] = useState<Array<{ id: string; name: string; min_ok: number; max_ok: number }>>([])
+  const [devices, setDevices] = useState<ManagedDevice[]>([])
   const [loaded, setLoaded] = useState(false)
-  const [newDev, setNewDev] = useState({ name: '', min: '0', max: '4' })
+  const [newDev, setNewDev] = useState({ name: '', min: '0', max: '4', zone: '' })
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editDev, setEditDev] = useState({ name: '', min: '', max: '', zone: '' })
   const supabase = createClient()
 
   async function load() {
@@ -245,6 +265,10 @@ function DeviceManager({ locationId, onChanged }: { locationId: string; onChange
     setLoaded(true)
   }
 
+  const zoneOptions = Array.from(
+    new Set(devices.map(d => d.zone?.trim()).filter((z): z is string => !!z))
+  ).sort((a, b) => a.localeCompare(b, 'pl'))
+
   async function addDevice() {
     if (!newDev.name.trim()) { toast.error('Podaj nazwę urządzenia'); return }
     const { error } = await supabase.from('location_devices').insert({
@@ -252,16 +276,38 @@ function DeviceManager({ locationId, onChanged }: { locationId: string; onChange
       name: newDev.name.trim(),
       min_ok: parseFloat(newDev.min) || 0,
       max_ok: parseFloat(newDev.max) || 4,
+      zone: newDev.zone.trim() || null,
     })
     if (error) { toast.error(error.message); return }
-    setNewDev({ name: '', min: '0', max: '4' })
+    setNewDev({ name: '', min: '0', max: '4', zone: '' })
     load()
     onChanged()
     toast.success('Urządzenie dodane')
   }
 
+  function startEdit(d: ManagedDevice) {
+    setEditingId(d.id)
+    setEditDev({ name: d.name, min: String(d.min_ok), max: String(d.max_ok), zone: d.zone ?? '' })
+  }
+
+  async function saveEdit(id: string) {
+    if (!editDev.name.trim()) { toast.error('Podaj nazwę urządzenia'); return }
+    const { error } = await supabase.from('location_devices').update({
+      name: editDev.name.trim(),
+      min_ok: parseFloat(editDev.min) || 0,
+      max_ok: parseFloat(editDev.max) || 4,
+      zone: editDev.zone.trim() || null,
+    }).eq('id', id)
+    if (error) { toast.error(error.message); return }
+    setEditingId(null)
+    load()
+    onChanged()
+    toast.success('Zapisano zmiany')
+  }
+
   async function removeDevice(id: string) {
     await supabase.from('location_devices').delete().eq('id', id)
+    if (editingId === id) setEditingId(null)
     load()
     onChanged()
   }
@@ -276,33 +322,83 @@ function DeviceManager({ locationId, onChanged }: { locationId: string; onChange
 
   return (
     <div className="space-y-3">
-      <div className="flex gap-2 flex-wrap">
-        <input
-          className="input flex-1 min-w-36 text-sm"
-          placeholder="Nazwa (np. Lodówka 1)"
-          value={newDev.name}
-          onChange={e => setNewDev(p => ({ ...p, name: e.target.value }))}
-          onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addDevice())}
-        />
-        <input className="input w-20 text-sm" type="number" step="0.5" placeholder="Min°C"
-          value={newDev.min} onChange={e => setNewDev(p => ({ ...p, min: e.target.value }))} />
-        <input className="input w-20 text-sm" type="number" step="0.5" placeholder="Max°C"
-          value={newDev.max} onChange={e => setNewDev(p => ({ ...p, max: e.target.value }))} />
-        <button onClick={addDevice}
-          className="px-4 py-2 bg-brand-navy text-white text-sm font-medium rounded-lg hover:bg-brand-navy-light">
-          Dodaj
-        </button>
+      <datalist id="zone-suggestions">
+        {zoneOptions.map(z => <option key={z} value={z} />)}
+      </datalist>
+
+      <div className="space-y-2">
+        <div className="flex gap-2 flex-wrap">
+          <input
+            className="input flex-1 min-w-36 text-sm"
+            placeholder="Nazwa (np. Lodówka 1)"
+            value={newDev.name}
+            onChange={e => setNewDev(p => ({ ...p, name: e.target.value }))}
+            onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addDevice())}
+          />
+          <input className="input w-20 text-sm" type="number" step="0.5" placeholder="Min°C"
+            value={newDev.min} onChange={e => setNewDev(p => ({ ...p, min: e.target.value }))} />
+          <input className="input w-20 text-sm" type="number" step="0.5" placeholder="Max°C"
+            value={newDev.max} onChange={e => setNewDev(p => ({ ...p, max: e.target.value }))} />
+        </div>
+        <div className="flex gap-2">
+          <input
+            className="input flex-1 text-sm"
+            list="zone-suggestions"
+            placeholder="Strefa, np. Kuchnia, Sala, Magazyn (opcjonalnie)"
+            value={newDev.zone}
+            onChange={e => setNewDev(p => ({ ...p, zone: e.target.value }))}
+            onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addDevice())}
+          />
+          <button onClick={addDevice}
+            className="px-4 py-2 bg-brand-navy text-white text-sm font-medium rounded-lg hover:bg-brand-navy-light shrink-0">
+            Dodaj
+          </button>
+        </div>
       </div>
+
       <div className="space-y-1">
         {devices.map(d => (
-          <div key={d.id} className="flex items-center justify-between bg-white border border-gray-100 p-2.5 rounded-lg text-sm">
-            <span className="font-medium text-gray-900">{d.name}</span>
-            <div className="flex items-center gap-3">
-              <span className="text-gray-400 text-xs font-mono">{d.min_ok} – {d.max_ok}°C</span>
-              <button onClick={() => removeDevice(d.id)} className="text-red-400 hover:text-red-600">
-                <Trash2 size={14} />
-              </button>
-            </div>
+          <div key={d.id} className="bg-white border border-gray-100 rounded-lg text-sm overflow-hidden">
+            {editingId === d.id ? (
+              <div className="p-2.5 space-y-2">
+                <div className="flex gap-2 flex-wrap">
+                  <input className="input flex-1 min-w-32 text-sm" value={editDev.name}
+                    onChange={e => setEditDev(p => ({ ...p, name: e.target.value }))} />
+                  <input className="input w-20 text-sm" type="number" step="0.5" value={editDev.min}
+                    onChange={e => setEditDev(p => ({ ...p, min: e.target.value }))} />
+                  <input className="input w-20 text-sm" type="number" step="0.5" value={editDev.max}
+                    onChange={e => setEditDev(p => ({ ...p, max: e.target.value }))} />
+                </div>
+                <input className="input w-full text-sm" list="zone-suggestions" placeholder="Strefa (opcjonalnie)"
+                  value={editDev.zone} onChange={e => setEditDev(p => ({ ...p, zone: e.target.value }))} />
+                <div className="flex gap-2">
+                  <button onClick={() => saveEdit(d.id)}
+                    className="px-3 py-1.5 bg-brand-green text-white text-xs font-medium rounded-lg hover:bg-brand-green-dark">
+                    Zapisz
+                  </button>
+                  <button onClick={() => setEditingId(null)}
+                    className="px-3 py-1.5 text-gray-500 text-xs font-medium rounded-lg border border-gray-200 hover:bg-gray-50">
+                    Anuluj
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between p-2.5">
+                <button onClick={() => startEdit(d)} className="flex-1 text-left min-w-0 truncate">
+                  <span className="font-medium text-gray-900">{d.name}</span>
+                  {d.zone && <span className="ml-2 text-xs text-gray-400">· {d.zone}</span>}
+                </button>
+                <div className="flex items-center gap-3 shrink-0 pl-2">
+                  <span className="text-gray-400 text-xs font-mono">{d.min_ok} – {d.max_ok}°C</span>
+                  <button onClick={() => startEdit(d)} className="text-gray-400 hover:text-brand-navy">
+                    <Pencil size={14} />
+                  </button>
+                  <button onClick={() => removeDevice(d.id)} className="text-red-400 hover:text-red-600">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ))}
         {devices.length === 0 && <p className="text-sm text-gray-400 italic">Brak zarejestrowanych urządzeń</p>}
@@ -340,6 +436,9 @@ export function TemperatureBoard({ devices, locationId, canManageDevices = true 
     if (filter === 'alarm') return d.lastOk === false
     return true
   })
+
+  const groupedDevices = groupDevicesByZone(filtered)
+  const showZoneHeaders = groupedDevices.length > 1
 
   const firstUnchecked = devices.find(d => d.todayCount === 0)
 
@@ -433,32 +532,41 @@ export function TemperatureBoard({ devices, locationId, canManageDevices = true 
 
       {/* Device cards */}
       {filtered.length > 0 ? (
-        <div className="space-y-2">
-          {filtered.map(device => {
-            const status = getDeviceStatus(device)
-            const s = STATUS_STYLE[status]
-            return (
-              <div key={device.id}>
-                <CompactRecordCard
-                  dotClassName={s.dot}
-                  title={device.name}
-                  meta={device.lastTemp !== null
-                    ? <>Ostatni: <span className="font-mono">{device.lastTemp}°C</span>{device.lastMeasuredAt && <> · {formatDateTime(device.lastMeasuredAt)}</>}</>
-                    : `Norma: ${device.min_ok} – ${device.max_ok}°C`}
-                  badge={<span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', s.badge)}>{s.label}</span>}
-                  onClick={() => setSelected(device)}
-                />
-                <Link
-                  href={`/temperatury/${encodeURIComponent(device.name)}`}
-                  className="flex items-center gap-1 mt-1 ml-3 text-xs text-gray-400 hover:text-brand-navy transition-colors w-fit"
-                >
-                  <Clock size={11} />
-                  Historia wpisów
-                  <ChevronRight size={11} />
-                </Link>
-              </div>
-            )
-          })}
+        <div className="space-y-5">
+          {groupedDevices.map(group => (
+            <div key={group.zone ?? '__none__'} className="space-y-2">
+              {showZoneHeaders && (
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1">
+                  {group.zone ?? 'Bez przypisanej strefy'}
+                </p>
+              )}
+              {group.devices.map(device => {
+                const status = getDeviceStatus(device)
+                const s = STATUS_STYLE[status]
+                return (
+                  <div key={device.id}>
+                    <CompactRecordCard
+                      dotClassName={s.dot}
+                      title={device.name}
+                      meta={device.lastTemp !== null
+                        ? <>Ostatni: <span className="font-mono">{device.lastTemp}°C</span>{device.lastMeasuredAt && <> · {formatDateTime(device.lastMeasuredAt)}</>}</>
+                        : `Norma: ${device.min_ok} – ${device.max_ok}°C`}
+                      badge={<span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', s.badge)}>{s.label}</span>}
+                      onClick={() => setSelected(device)}
+                    />
+                    <Link
+                      href={`/temperatury/${encodeURIComponent(device.name)}`}
+                      className="flex items-center gap-1 mt-1 ml-3 text-xs text-gray-400 hover:text-brand-navy transition-colors w-fit"
+                    >
+                      <Clock size={11} />
+                      Historia wpisów
+                      <ChevronRight size={11} />
+                    </Link>
+                  </div>
+                )
+              })}
+            </div>
+          ))}
         </div>
       ) : total === 0 ? (
         <EmptyState

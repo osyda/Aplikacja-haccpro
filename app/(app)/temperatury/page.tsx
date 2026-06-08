@@ -9,6 +9,7 @@ export interface DeviceWithStatus {
   name: string
   min_ok: number
   max_ok: number
+  zone: string | null
   lastTemp: number | null
   lastMeasuredAt: string | null
   lastOk: boolean | null
@@ -46,6 +47,7 @@ export default async function TemperaturyPage() {
       name: device.name,
       min_ok: device.min_ok,
       max_ok: device.max_ok,
+      zone: device.zone ?? null,
       lastTemp: last?.temperature ?? null,
       lastMeasuredAt: last?.measured_at ?? null,
       lastOk: last ? isTemperatureOk(last.temperature, device.min_ok, device.max_ok) : null,
@@ -64,6 +66,7 @@ export default async function TemperaturyPage() {
       name,
       min_ok: last.min_ok,
       max_ok: last.max_ok,
+      zone: null,
       lastTemp: last.temperature,
       lastMeasuredAt: last.measured_at,
       lastOk: isTemperatureOk(last.temperature, last.min_ok, last.max_ok),
