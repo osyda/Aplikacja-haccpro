@@ -1,12 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { Thermometer, Truck, Droplets, Plus, ChevronRight } from 'lucide-react'
-import { getTodayStart, getTodayEnd, isTemperatureOk } from '@/lib/utils'
+import {
+  Thermometer, Truck, Droplets, AlertTriangle, ChevronRight, CheckCircle2,
+  GraduationCap, Stethoscope, FileText, Apple, Bug,
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { getTodayStart, getTodayEnd, isTemperatureOk, cn } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/page-header'
-import { AlertBox } from '@/components/ui/alert-box'
 import { Badge } from '@/components/ui/badge'
 import { GettingStarted, type OnboardingStep } from '@/components/onboarding/getting-started'
-import { cn } from '@/lib/utils'
 
 async function getDashboardData(locationId: string) {
   const supabase = createClient()
@@ -77,7 +79,7 @@ export default async function DashboardPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('location_id, org_id, locations(name)')
+    .select('location_id, org_id, full_name, locations(name)')
     .eq('id', user!.id)
     .single()
 
@@ -148,172 +150,195 @@ export default async function DashboardPage() {
     )
   }
 
+  const firstName = profile?.full_name?.trim().split(/\s+/)[0] || null
+  const initial = (firstName ?? user?.email ?? 'U')[0]?.toUpperCase() ?? 'U'
+
+  interface Priority {
+    id: string
+    icon: LucideIcon
+    iconClass: string
+    bgClass: string
+    label: string
+    href: string
+  }
+
+  const priorities: Priority[] = []
+  if (data) {
+    if (data.tempAlarms > 0) {
+      priorities.push({
+        id: 'temp-alarm', icon: Thermometer, iconClass: 'text-red-500', bgClass: 'bg-red-50',
+        label: `Alarmy temperatur (${data.tempAlarms})`, href: '/temperatury',
+      })
+    }
+    const missing = data.totalDevices - data.checkedDevices
+    if (missing > 0) {
+      priorities.push({
+        id: 'temp-missing', icon: Thermometer, iconClass: 'text-orange-500', bgClass: 'bg-orange-50',
+        label: missing === 1 ? '1 temperatura do wpisania' : `Temperatury do wpisania (${missing})`,
+        href: '/temperatury',
+      })
+    }
+    if (data.openNonconformities > 0) {
+      priorities.push({
+        id: 'nonconf', icon: AlertTriangle, iconClass: 'text-orange-500', bgClass: 'bg-orange-50',
+        label: `Otwarte niezgodności (${data.openNonconformities})`, href: '/niezgodnosci',
+      })
+    }
+    if (data.cleaningCount === 0) {
+      priorities.push({
+        id: 'no-cleaning', icon: Droplets, iconClass: 'text-orange-500', bgClass: 'bg-orange-50',
+        label: 'Brak wpisów mycia dzisiaj', href: '/mycie',
+      })
+    }
+    if (data.deliveryCount === 0) {
+      priorities.push({
+        id: 'no-delivery', icon: Truck, iconClass: 'text-gray-400', bgClass: 'bg-gray-100',
+        label: 'Brak dostaw dzisiaj', href: '/dostawy',
+      })
+    }
+  }
+
+  const QUICK_ACTIONS: { href: string; label: string; icon: LucideIcon }[] = [
+    { href: '/temperatury', label: 'Dodaj temperaturę', icon: Thermometer },
+    { href: '/dostawy/nowa', label: 'Dodaj dostawę', icon: Truck },
+    { href: '/mycie', label: 'Dodaj mycie', icon: Droplets },
+    { href: '/niezgodnosci', label: 'Zgłoś niezgodność', icon: AlertTriangle },
+  ]
+
+  interface ModuleStatus {
+    id: string
+    icon: LucideIcon
+    title: string
+    href: string
+    cta: string
+    badgeVariant: 'ok' | 'warn' | 'error' | 'neutral'
+    badgeLabel: string
+    description: string
+  }
+
+  const moduleStatus: ModuleStatus[] = data ? [
+    {
+      id: 'temperatury', icon: Thermometer, title: 'Temperatury', href: '/temperatury', cta: 'Dodaj temperaturę',
+      badgeVariant: data.totalDevices === 0 ? 'neutral' : data.tempAlarms > 0 ? 'error' : data.checkedDevices === data.totalDevices ? 'ok' : 'warn',
+      badgeLabel: data.totalDevices === 0 ? 'Brak' : data.tempAlarms > 0 ? 'Alarm' : data.checkedDevices === data.totalDevices ? 'OK' : 'Braki',
+      description: data.totalDevices === 0 ? 'Brak zarejestrowanych urządzeń' : `Sprawdzone ${data.checkedDevices}/${data.totalDevices} dziś`,
+    },
+    {
+      id: 'dostawy', icon: Truck, title: 'Dostawy', href: '/dostawy/nowa', cta: 'Dodaj dostawę',
+      badgeVariant: data.deliveryCount > 0 ? 'ok' : 'neutral',
+      badgeLabel: data.deliveryCount > 0 ? `${data.deliveryCount} dziś` : 'Brak',
+      description: data.lastDelivery ? `Ostatnia: ${data.lastDelivery.supplier}` : 'Brak dostaw dzisiaj',
+    },
+    {
+      id: 'mycie', icon: Droplets, title: 'Mycie i dezynfekcja', href: '/mycie', cta: 'Dodaj mycie',
+      badgeVariant: data.cleaningCount > 0 ? 'ok' : 'warn',
+      badgeLabel: data.cleaningCount > 0 ? 'OK' : 'Brak',
+      description: data.lastCleaning ? `Ostatnie: ${data.lastCleaning.area}` : 'Brak wpisów dzisiaj',
+    },
+  ] : []
+
+  const OTHER_MODULES: { href: string; label: string; icon: LucideIcon }[] = [
+    { href: '/niezgodnosci', label: 'Niezgodności', icon: AlertTriangle },
+    { href: '/szkolenia', label: 'Szkolenia', icon: GraduationCap },
+    { href: '/orzeczenia', label: 'Orzeczenia', icon: Stethoscope },
+    { href: '/raporty', label: 'Raporty PDF', icon: FileText },
+    { href: '/alergeny', label: 'Alergeny', icon: Apple },
+    { href: '/ddd', label: 'Kontrola DDD', icon: Bug },
+  ]
+
   return (
-    <div className="space-y-5">
-      <PageHeader
-        title={locationName}
-        subtitle={dateStr}
-        action={
-          todoCount > 0 ? (
-            <Badge variant="warn" className="px-3 py-1.5 text-xs font-bold">Do wykonania: {todoCount}</Badge>
-          ) : (
-            <Badge variant="ok" className="px-3 py-1.5 text-xs font-bold">Wszystko OK</Badge>
-          )
-        }
-      />
+    <div className="space-y-4">
+      {/* Compact greeting header */}
+      <div className="card flex items-center gap-3">
+        <div className="w-11 h-11 rounded-full bg-brand-green/15 flex items-center justify-center shrink-0">
+          <span className="text-brand-green font-bold">{initial}</span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-bold text-gray-900 truncate">Dzień dobry{firstName ? `, ${firstName}` : ''}</p>
+          <p className="text-xs text-gray-500 truncate">{locationName} • {dateStr}</p>
+        </div>
+        <Badge variant={todoCount > 0 ? 'warn' : 'ok'} className="shrink-0 px-2.5 py-1 text-xs font-bold">
+          {todoCount > 0 ? `Do wykonania: ${todoCount}` : 'Wszystko OK'}
+        </Badge>
+      </div>
 
       <GettingStarted steps={onboardingSteps} />
 
       {/* Priorytety na dziś */}
-      {data && data.tempAlarms > 0 && (
-        <AlertBox
-          variant="error"
-          title={`Alarmy temperatur (${data.tempAlarms})`}
-          description="Sprawdź urządzenia z przekroczoną normą"
-          action={<Link href="/temperatury" className="text-xs text-red-700 font-semibold hover:underline">Przejdź →</Link>}
-        />
-      )}
-
-      {data && data.openNonconformities > 0 && (
-        <AlertBox
-          variant="warning"
-          title={`Otwarte niezgodności (${data.openNonconformities})`}
-          description="Wymagają zamknięcia lub działania korygującego"
-          action={<Link href="/niezgodnosci" className="text-xs text-orange-700 font-semibold hover:underline">Przejdź →</Link>}
-        />
-      )}
-
-      {/* Temperature tile */}
-      <div className={cn('rounded-2xl border-2 p-5',
-        data && data.tempAlarms > 0
-          ? 'border-red-200 bg-red-50'
-          : data && data.checkedDevices === data.totalDevices && data.totalDevices > 0
-          ? 'border-green-200 bg-green-50'
-          : 'border-gray-100 bg-white'
-      )}>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-brand-navy/10 rounded-xl">
-              <Thermometer size={18} className="text-brand-navy" />
-            </div>
-            <span className="font-bold text-gray-900">Temperatury</span>
-          </div>
-          <Badge variant={
-            !data || data.totalDevices === 0 ? 'neutral'
-            : data.tempAlarms > 0 ? 'error'
-            : data.checkedDevices === data.totalDevices ? 'ok'
-            : 'warn'
-          } className="px-2.5 py-1 font-bold">
-            {data
-              ? data.totalDevices === 0 ? 'Brak urządzeń'
-              : data.tempAlarms > 0 ? `${data.tempAlarms} alarm${data.tempAlarms > 1 ? 'y' : ''}`
-              : data.checkedDevices === data.totalDevices ? 'Wszystkie OK'
-              : 'Do uzupełnienia'
-              : '–'}
-          </Badge>
-        </div>
-
-        {data && data.totalDevices > 0 && (
-          <>
-            <p className="text-sm text-gray-600 mb-2">
-              Sprawdzone: <span className="font-bold text-gray-900">{data.checkedDevices}/{data.totalDevices}</span> urządzeń
-            </p>
-            <div className="w-full bg-white/60 rounded-full h-2.5 mb-4 overflow-hidden">
-              <div
-                className={cn('h-full rounded-full transition-all',
-                  data.tempAlarms > 0 ? 'bg-red-500'
-                  : data.checkedDevices === data.totalDevices ? 'bg-green-500'
-                  : 'bg-brand-navy'
-                )}
-                style={{ width: `${data.tempProgress}%` }}
-              />
-            </div>
-          </>
-        )}
-
-        <Link href="/temperatury"
-          className="w-full flex items-center justify-center gap-2 bg-brand-green hover:bg-brand-green-dark text-white rounded-xl py-3.5 text-sm font-bold transition-colors min-h-[52px]">
-          {data && data.checkedDevices < data.totalDevices ? 'Sprawdź temperatury' : 'Rejestr temperatur'}
-          <ChevronRight size={16} />
-        </Link>
-      </div>
-
-      {/* Deliveries tile */}
-      <div className="rounded-2xl border-2 border-gray-100 bg-white p-5">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-brand-navy/10 rounded-xl">
-              <Truck size={18} className="text-brand-navy" />
-            </div>
-            <span className="font-bold text-gray-900">Dostawy</span>
-          </div>
-          <Badge variant="neutral" className="px-2.5 py-1 font-bold">
-            {data ? `${data.deliveryCount} dziś` : '–'}
-          </Badge>
-        </div>
-
-        {data?.lastDelivery ? (
-          <p className="text-sm text-gray-600 mb-4">
-            Ostatnia: <span className="font-medium text-gray-900">{data.lastDelivery.supplier}</span>
-            {data.lastDelivery.product && <span className="text-gray-500"> · {data.lastDelivery.product}</span>}
-          </p>
-        ) : (
-          <p className="text-sm text-gray-400 mb-4">Brak dostaw dzisiaj. Dodaj pierwszą dostawę.</p>
-        )}
-
-        <Link href="/dostawy/nowa"
-          className="w-full flex items-center justify-center gap-2 bg-brand-green hover:bg-brand-green-dark text-white rounded-xl py-3.5 text-sm font-bold transition-colors min-h-[52px]">
-          <Plus size={16} />
-          Dodaj dostawę
-        </Link>
-      </div>
-
-      {/* Cleaning tile */}
-      <div className={cn('rounded-2xl border-2 p-5',
-        data && data.cleaningCount > 0 ? 'border-gray-100 bg-white' : 'border-yellow-200 bg-yellow-50/50'
-      )}>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-brand-navy/10 rounded-xl">
-              <Droplets size={18} className="text-brand-navy" />
-            </div>
-            <span className="font-bold text-gray-900">Mycie i dezynfekcja</span>
-          </div>
-          <Badge variant={data && data.cleaningCount > 0 ? 'neutral' : 'warn'} className="px-2.5 py-1 font-bold">
-            {data ? `${data.cleaningCount} dziś` : '–'}
-          </Badge>
-        </div>
-
-        {data?.lastCleaning ? (
-          <p className="text-sm text-gray-600 mb-4">
-            Ostatni: <span className="font-medium text-gray-900">{data.lastCleaning.area}</span>
-            <span className="text-gray-500"> · {data.lastCleaning.agent}</span>
-          </p>
-        ) : (
-          <p className="text-sm text-gray-400 mb-4">Brak wpisów mycia dzisiaj.</p>
-        )}
-
-        <Link href="/mycie"
-          className="w-full flex items-center justify-center gap-2 bg-brand-green hover:bg-brand-green-dark text-white rounded-xl py-3.5 text-sm font-bold transition-colors min-h-[52px]">
-          <Plus size={16} />
-          Dodaj mycie
-        </Link>
-      </div>
-
-      {/* Quick access */}
       <div className="card">
-        <p className="text-sm font-semibold text-gray-700 mb-3">Pozostałe moduły</p>
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            { href: '/niezgodnosci', label: 'Niezgodności' },
-            { href: '/szkolenia', label: 'Szkolenia' },
-            { href: '/orzeczenia', label: 'Orzeczenia' },
-            { href: '/raporty', label: 'Raporty PDF' },
-          ].map(({ href, label }) => (
+        <p className="font-bold text-gray-900 text-sm mb-1">Priorytety na dziś</p>
+        {priorities.length > 0 ? (
+          <div className="divide-y divide-gray-50">
+            {priorities.map(p => (
+              <Link key={p.id} href={p.href} className="flex items-center gap-3 py-3 first:pt-2 last:pb-1 group">
+                <div className={cn('p-2 rounded-lg shrink-0', p.bgClass)}>
+                  <p.icon size={16} className={p.iconClass} />
+                </div>
+                <span className="text-sm text-gray-700 flex-1 min-w-0">{p.label}</span>
+                <ChevronRight size={16} className="text-gray-300 shrink-0 group-hover:text-gray-400 transition-colors" />
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 py-2">
+            <div className="p-2 rounded-lg bg-green-50 shrink-0">
+              <CheckCircle2 size={16} className="text-brand-green" />
+            </div>
+            <span className="text-sm text-gray-500">Brak pilnych spraw — wszystko w porządku</span>
+          </div>
+        )}
+      </div>
+
+      {/* Szybkie akcje */}
+      <div className="card">
+        <p className="font-bold text-gray-900 text-sm mb-3">Szybkie akcje</p>
+        <div className="grid grid-cols-4 gap-2">
+          {QUICK_ACTIONS.map(({ href, label, icon: Icon }) => (
             <Link key={href} href={href}
-              className="flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors">
-              <span className="text-sm font-medium text-gray-700">{label}</span>
-              <ChevronRight size={14} className="text-gray-300" />
+              className="flex flex-col items-center gap-1.5 rounded-xl border border-gray-100 py-3 px-1 text-center hover:border-brand-navy/30 hover:bg-brand-navy/5 active:scale-[0.97] transition-all">
+              <div className="p-2 bg-brand-navy/10 rounded-lg">
+                <Icon size={16} className="text-brand-navy" />
+              </div>
+              <span className="text-[11px] font-semibold text-gray-700 leading-tight">{label}</span>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      {/* Status modułów */}
+      {moduleStatus.length > 0 && (
+        <div>
+          <p className="font-bold text-gray-900 text-sm mb-2">Status modułów</p>
+          <div className="grid grid-cols-3 gap-2">
+            {moduleStatus.map(m => (
+              <div key={m.id} className="rounded-xl border border-gray-100 bg-white p-3 flex flex-col gap-1.5">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <m.icon size={14} className="text-brand-navy shrink-0" />
+                  <span className="text-xs font-bold text-gray-900 truncate">{m.title}</span>
+                </div>
+                <Badge variant={m.badgeVariant} className="w-fit text-[10px] px-1.5 py-0.5">{m.badgeLabel}</Badge>
+                <p className="text-[11px] text-gray-500 leading-snug line-clamp-2 flex-1">{m.description}</p>
+                <Link href={m.href} className="text-[11px] font-semibold text-brand-green hover:underline">
+                  {m.cta} →
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Pozostałe moduły */}
+      <div className="card">
+        <p className="font-bold text-gray-900 text-sm mb-3">Pozostałe moduły</p>
+        <div className="grid grid-cols-2 gap-2">
+          {OTHER_MODULES.map(({ href, label, icon: Icon }) => (
+            <Link key={href} href={href}
+              className="flex items-center gap-2.5 p-3 rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors">
+              <div className="p-1.5 bg-brand-navy/10 rounded-lg shrink-0">
+                <Icon size={14} className="text-brand-navy" />
+              </div>
+              <span className="text-sm font-medium text-gray-700 truncate flex-1 min-w-0">{label}</span>
+              <ChevronRight size={14} className="text-gray-300 shrink-0" />
             </Link>
           ))}
         </div>
