@@ -97,6 +97,7 @@ export default function MyCiePage() {
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
 
+  const [areaSearch, setAreaSearch] = useState('')
   const [showAddArea, setShowAddArea] = useState(false)
   const [customAreaInput, setCustomAreaInput] = useState('')
   const [showAddAgent, setShowAddAgent] = useState(false)
@@ -141,7 +142,7 @@ export default function MyCiePage() {
 
   function selectDept(d: Dept) {
     setDept(d); setArea(''); setAgent('')
-    setShowAddArea(false); setShowAddAgent(false)
+    setShowAddArea(false); setShowAddAgent(false); setAreaSearch('')
     setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
   }
 
@@ -210,6 +211,10 @@ export default function MyCiePage() {
     dept ? [...(DEPT[dept].agents as readonly string[]), ...customAgents] : [],
     [dept, customAgents]
   )
+  const visibleAreas = useMemo(() => {
+    const q = areaSearch.trim().toLowerCase()
+    return q ? deptAreas.filter(a => a.toLowerCase().includes(q)) : deptAreas
+  }, [deptAreas, areaSearch])
 
   const filteredHistory = useMemo(() => {
     const past = logs.filter(l => new Date(l.cleaned_at) < new Date(todayStart))
@@ -339,8 +344,16 @@ export default function MyCiePage() {
                 </button>
               </div>
             )}
+            {deptAreas.length > 8 && (
+              <input
+                className="input text-sm mb-2"
+                placeholder="Szukaj obszaru…"
+                value={areaSearch}
+                onChange={e => setAreaSearch(e.target.value)}
+              />
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-52 overflow-y-auto pr-0.5">
-              {deptAreas.map(a => (
+              {visibleAreas.map(a => (
                 <button key={a} type="button" onClick={() => setArea(a)}
                   className={cn(
                     'px-3 py-2.5 rounded-xl border-2 text-xs font-medium transition-all min-h-[44px] text-left',
@@ -351,6 +364,9 @@ export default function MyCiePage() {
                   {a}
                 </button>
               ))}
+              {visibleAreas.length === 0 && (
+                <p className="col-span-full text-xs text-gray-400 text-center py-3">Brak obszarów pasujących do „{areaSearch}”</p>
+              )}
             </div>
             {area && !deptAreas.includes(area) && (
               <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700">

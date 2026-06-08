@@ -33,6 +33,12 @@ export default function RaportyPage() {
     )
   }
 
+  const allSelected = selectedModules.length === MODULES.length
+
+  function toggleAll() {
+    setSelectedModules(allSelected ? [] : MODULES.map((m) => m.id))
+  }
+
   async function handleGenerate() {
     setLoading(true)
     setError('')
@@ -92,7 +98,12 @@ export default function RaportyPage() {
         </div>
 
         <div>
-          <label className="label">Moduły do raportu</label>
+          <div className="flex items-center justify-between">
+            <label className="label">Moduły do raportu</label>
+            <button type="button" onClick={toggleAll} className="text-xs font-medium text-brand-green hover:text-brand-green-dark">
+              {allSelected ? 'Odznacz wszystkie' : 'Zaznacz wszystkie'}
+            </button>
+          </div>
           <div className="space-y-2">
             {MODULES.map((m) => (
               <label key={m.id} className="flex items-center gap-3 p-3 border border-gray-100 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
