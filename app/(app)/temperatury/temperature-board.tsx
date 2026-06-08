@@ -318,7 +318,7 @@ interface TemperatureBoardProps {
 }
 
 export function TemperatureBoard({ devices, locationId, canManageDevices = true }: TemperatureBoardProps) {
-  const [filter, setFilter] = useState<FilterType>('all')
+  const [filter, setFilter] = useState<FilterType>('missing')
   const [showManager, setShowManager] = useState(false)
   const [selected, setSelected] = useState<DeviceWithStatus | null>(null)
   const router = useRouter()
@@ -344,8 +344,8 @@ export function TemperatureBoard({ devices, locationId, canManageDevices = true 
   const firstUnchecked = devices.find(d => d.todayCount === 0)
 
   const filterOptions: { value: FilterType; label: string; count: number }[] = [
-    { value: 'all', label: 'Wszystkie', count: counts.all },
     { value: 'missing', label: 'Nieuzupełnione', count: counts.missing },
+    { value: 'all', label: 'Wszystkie', count: counts.all },
     { value: 'ok', label: 'OK', count: counts.ok },
     { value: 'alarm', label: 'Alarm', count: counts.alarm },
   ]
