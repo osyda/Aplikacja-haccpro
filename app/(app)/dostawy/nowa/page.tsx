@@ -4,9 +4,10 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { ChevronLeft, Paperclip, X, Thermometer, Building2, Plus, CheckCircle2, AlertCircle, ChevronRight, Camera, Sparkles, RotateCcw } from 'lucide-react'
+import { ChevronLeft, Paperclip, X, Thermometer, Building2, Plus, CheckCircle2, AlertCircle, ChevronRight, Camera, Sparkles, RotateCcw, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { isOwnerRole } from '@/lib/permissions'
 import type { ScanResult } from '@/app/api/scan-invoice/route'
 
 const DELIVERY_CATEGORIES = [
@@ -21,6 +22,7 @@ const DELIVERY_CATEGORIES = [
   { id: 'suche',    label: 'Produkty suche',      requiresTemp: false, tempHint: '',          activeClass: 'border-amber-400 bg-amber-50 text-amber-700' },
   { id: 'pieczywo', label: 'Pieczywo',            requiresTemp: false, tempHint: '',          activeClass: 'border-amber-400 bg-amber-50 text-amber-700' },
   { id: 'napoje',   label: 'Napoje',              requiresTemp: false, tempHint: '',          activeClass: 'border-sky-400 bg-sky-50 text-sky-700' },
+  { id: 'alkohol',  label: 'Piwo / Alkohol',      requiresTemp: false, tempHint: '',          activeClass: 'border-lime-400 bg-lime-50 text-lime-700' },
   { id: 'inne',     label: 'Inne',                requiresTemp: false, tempHint: '',          activeClass: 'border-gray-400 bg-gray-50 text-gray-600' },
 ]
 
@@ -72,6 +74,8 @@ function StepIndicator({ step, total }: { step: number; total: number }) {
 export default function NowaDostawaPage() {
   const [step, setStep] = useState(1)
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [canManageSuppliers, setCanManageSuppliers] = useState(false)
+  const [deletingSupplierId, setDeletingSupplierId] = useState<string | null>(null)
   const [showAddSupplier, setShowAddSupplier] = useState(false)
   const [newSupp, setNewSupp] = useState(EMPTY_NEW_SUPP)
   const [form, setForm] = useState({
@@ -101,7 +105,8 @@ export default function NowaDostawaPage() {
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
-      const { data: profile } = await supabase.from('profiles').select('location_id').eq('id', user!.id).single()
+      const { data: profile } = await supabase.from('profiles').select('location_id, role').eq('id', user!.id).single()
+      setCanManageSuppliers(isOwnerRole(profile?.role))
       const { data } = await supabase.from('location_suppliers').select('*').eq('location_id', profile?.location_id ?? '').order('alias')
       setSuppliers(data ?? [])
     }
@@ -157,6 +162,17 @@ export default function NowaDostawaPage() {
     setNewSupp(EMPTY_NEW_SUPP)
     setShowAddSupplier(false)
     toast.success('Dostawca dodany!')
+  }
+
+  async function deleteSupplier(id: string, alias: string) {
+    if (!window.confirm(`Na pewno usunąć dostawcę "${alias}"?\n\nHistoria wcześniejszych dostaw pozostanie niezmieniona.`)) return
+    setDeletingSupplierId(id)
+    const { error } = await supabase.from('location_suppliers').delete().eq('id', id)
+    setDeletingSupplierId(null)
+    if (error) { toast.error('Błąd usuwania: ' + error.message); return }
+    setSuppliers(p => p.filter(s => s.id !== id))
+    if (form.supplier === alias) setForm(p => ({ ...p, supplier: '' }))
+    toast.success(`Dostawca "${alias}" usunięty.`)
   }
 
   function toggleCategory(id: string) {
@@ -313,16 +329,27 @@ export default function NowaDostawaPage() {
               {suppliers.map(s => {
                 const sel = form.supplier === s.alias
                 return (
-                  <button key={s.id} type="button"
+                  <div key={s.id}
                     onClick={() => setForm(p => ({ ...p, supplier: sel ? '' : s.alias }))}
                     className={cn(
-                      'p-3 rounded-xl border-2 text-left transition-all min-h-[72px]',
+                      'relative p-3 rounded-xl border-2 text-left transition-all min-h-[72px] cursor-pointer',
                       sel ? 'border-brand-navy bg-brand-navy/5' : 'border-gray-100 bg-white hover:border-gray-200'
                     )}>
-                    <p className={cn('font-bold text-sm leading-tight', sel ? 'text-brand-navy' : 'text-gray-900')}>{s.alias}</p>
-                    {s.full_name && <p className="text-xs text-gray-500 mt-0.5 leading-tight truncate">{s.full_name}</p>}
+                    <p className={cn('font-bold text-sm leading-tight pr-6', sel ? 'text-brand-navy' : 'text-gray-900')}>{s.alias}</p>
+                    {s.full_name && <p className="text-xs text-gray-500 mt-0.5 leading-tight truncate pr-6">{s.full_name}</p>}
                     {s.nip && <p className="text-xs text-gray-400 font-mono mt-0.5">NIP: {s.nip}</p>}
-                  </button>
+                    {canManageSuppliers && (
+                      <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); deleteSupplier(s.id, s.alias) }}
+                        disabled={deletingSupplierId === s.id}
+                        title="Usuń dostawcę"
+                        className="absolute top-2 right-2 p-1.5 rounded-lg text-gray-300 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-30"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
                 )
               })}
             </div>

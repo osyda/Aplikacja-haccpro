@@ -7,7 +7,7 @@ import {
   Calendar, CheckCircle2, XCircle, AlertTriangle,
   Fish, Snowflake, Leaf, Package, GlassWater, Beef,
   Milk, Wheat, Sandwich, UtensilsCrossed, Bird, Truck,
-  ExternalLink,
+  ExternalLink, Beer,
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
@@ -49,6 +49,7 @@ const CAT_META: Record<string, { label: string; color: string; bg: string; Icon:
   suche:    { label: 'Produkty suche',  color: 'text-amber-700',  bg: 'bg-amber-50',  Icon: Package },
   pieczywo: { label: 'Pieczywo',        color: 'text-amber-800',  bg: 'bg-amber-50',  Icon: Wheat },
   napoje:   { label: 'Napoje',          color: 'text-sky-700',    bg: 'bg-sky-50',    Icon: GlassWater },
+  alkohol:  { label: 'Piwo / Alkohol',  color: 'text-lime-700',   bg: 'bg-lime-50',   Icon: Beer },
   inne:     { label: 'Inne',            color: 'text-gray-600',   bg: 'bg-gray-100',  Icon: FileText },
 }
 
@@ -292,6 +293,11 @@ function DetailModal({ log, supp, author, onClose }: { log: DeliveryLog; supp: S
   )
 }
 
+function categoryLabel(cats: string[]): string {
+  if (cats.length === 0) return 'Dostawa'
+  return cats.map(c => CAT_META[c]?.label ?? c).join(' • ')
+}
+
 function DeliveryCard({ log, supp, author, onClick }: { log: DeliveryLog; supp: Supplier | undefined; author?: string; onClick: () => void }) {
   const cats = getCats(log)
   const tempWarn = isTempWarn(log.temp_at_delivery, cats)
@@ -302,12 +308,12 @@ function DeliveryCard({ log, supp, author, onClick }: { log: DeliveryLog; supp: 
       onClick={onClick}
     >
       <div className="p-4">
-        {/* Top: icon + name + status */}
+        {/* Top: icon + category + status */}
         <div className="flex items-start gap-3">
           <CategoryIcon cats={cats} />
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2 mb-0.5">
-              <p className="font-semibold text-sm text-gray-900 leading-snug">{log.product}</p>
+              <p className="font-semibold text-sm text-gray-900 leading-snug truncate">{categoryLabel(cats)}</p>
               <StatusBadge log={log} />
             </div>
             <p className="text-xs font-medium text-gray-600">{log.supplier}</p>
@@ -319,20 +325,6 @@ function DeliveryCard({ log, supp, author, onClick }: { log: DeliveryLog; supp: 
             )}
           </div>
         </div>
-
-        {/* Category badges */}
-        {cats.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-3">
-            {cats.map(c => {
-              const m = CAT_META[c]
-              return m ? (
-                <span key={c} className={cn('text-[11px] px-2 py-0.5 rounded-full font-medium', m.color, m.bg)}>
-                  {m.label}
-                </span>
-              ) : null
-            })}
-          </div>
-        )}
 
         {/* Details row */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2.5 pt-2.5 border-t border-gray-50">
