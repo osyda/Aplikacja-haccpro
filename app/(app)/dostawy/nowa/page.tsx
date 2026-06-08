@@ -84,6 +84,7 @@ export default function NowaDostawaPage() {
     product: '',
     quantity: '',
     temp_at_delivery: '',
+    temp_frozen: '',
     expiry_date: '',
     quality_ok: true as boolean | null,
     nonconformity_desc: '',
@@ -99,8 +100,15 @@ export default function NowaDostawaPage() {
   const supabase = createClient()
 
   const tempRequiredCats = DELIVERY_CATEGORIES.filter(c => form.categories.includes(c.id) && c.requiresTemp)
+  const frozenCats = tempRequiredCats.filter(c => c.id === 'mrozonki')
+  const chilledCats = tempRequiredCats.filter(c => c.id !== 'mrozonki')
+  const hasFrozen = frozenCats.length > 0
+  const hasChilled = chilledCats.length > 0
   const requiresTemp = tempRequiredCats.length > 0
-  const hasFrozen = form.categories.includes('mrozonki')
+  // Frozen and chilled goods have very different temperature norms — when a
+  // delivery mixes both, one shared reading would always look "out of range"
+  // for one of them, so each gets its own field.
+  const needsTwoTempFields = hasFrozen && hasChilled
 
   useEffect(() => {
     async function load() {
@@ -186,6 +194,7 @@ export default function NowaDostawaPage() {
       if (!form.product.trim()) return false
       if (!form.quantity.trim()) return false
       if (requiresTemp && !form.temp_at_delivery) return false
+      if (needsTwoTempFields && !form.temp_frozen) return false
       return true
     }
     return true
@@ -218,6 +227,7 @@ export default function NowaDostawaPage() {
       product: form.product,
       quantity: form.quantity,
       temp_at_delivery: form.temp_at_delivery ? parseFloat(form.temp_at_delivery) : null,
+      temp_frozen: needsTwoTempFields && form.temp_frozen ? parseFloat(form.temp_frozen) : null,
       expiry_date: form.expiry_date || null,
       quality_ok: form.quality_ok,
       notes,
@@ -491,30 +501,48 @@ export default function NowaDostawaPage() {
               value={form.expiry_date} onChange={e => setForm(p => ({ ...p, expiry_date: e.target.value }))} />
           </div>
 
-          {requiresTemp && (
+          {hasChilled && (
             <div>
               <label className="label">
-                Temperatura przy odbiorze (°C) <span className="text-red-500">*</span>
+                {needsTwoTempFields
+                  ? `Temperatura — produkty chłodzone (${chilledCats.map(c => c.label).join(', ')})`
+                  : 'Temperatura przy odbiorze (°C)'}
+                {' '}<span className="text-red-500">*</span>
               </label>
               <input type="number" step="0.1" inputMode="decimal" className="input font-mono text-xl text-center py-3 h-14"
-                placeholder={hasFrozen ? 'np. −18.5' : 'np. 4.2'}
+                placeholder="np. 4.2"
                 value={form.temp_at_delivery} onChange={e => setForm(p => ({ ...p, temp_at_delivery: e.target.value }))} />
-              {hasFrozen ? (
-                <p className="text-xs text-cyan-700 bg-cyan-50 border border-cyan-200 rounded-lg px-3 py-1.5 mt-2">
-                  ❄ Mrożonki: wymagana temperatura ≤ −18°C
-                </p>
-              ) : (
-                <p className="text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded-lg px-3 py-1.5 mt-2">
-                  🌡 Produkty chłodzone: wymagana temperatura 0–8°C
-                </p>
-              )}
+              <p className="text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded-lg px-3 py-1.5 mt-2">
+                🌡 Produkty chłodzone: wymagana temperatura 0–8°C
+              </p>
+            </div>
+          )}
+
+          {hasFrozen && (
+            <div>
+              <label className="label">
+                {needsTwoTempFields ? 'Temperatura — mrożonki' : 'Temperatura przy odbiorze (°C)'}
+                {' '}<span className="text-red-500">*</span>
+              </label>
+              <input type="number" step="0.1" inputMode="decimal" className="input font-mono text-xl text-center py-3 h-14"
+                placeholder="np. −18.5"
+                value={needsTwoTempFields ? form.temp_frozen : form.temp_at_delivery}
+                onChange={e => setForm(p => needsTwoTempFields
+                  ? { ...p, temp_frozen: e.target.value }
+                  : { ...p, temp_at_delivery: e.target.value })} />
+              <p className="text-xs text-cyan-700 bg-cyan-50 border border-cyan-200 rounded-lg px-3 py-1.5 mt-2">
+                ❄ Mrożonki: wymagana temperatura ≤ −18°C
+              </p>
               {/* frozen out-of-range warning */}
-              {hasFrozen && form.temp_at_delivery && parseFloat(form.temp_at_delivery) > -18 && (
-                <div className="flex items-center gap-2 mt-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                  <AlertCircle size={13} />
-                  Temperatura mrożonek wyższa niż −18°C — dostawa wymaga uwagi
-                </div>
-              )}
+              {(() => {
+                const val = needsTwoTempFields ? form.temp_frozen : form.temp_at_delivery
+                return val && parseFloat(val) > -18 ? (
+                  <div className="flex items-center gap-2 mt-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                    <AlertCircle size={13} />
+                    Temperatura mrożonek wyższa niż −18°C — dostawa wymaga uwagi
+                  </div>
+                ) : null
+              })()}
             </div>
           )}
 

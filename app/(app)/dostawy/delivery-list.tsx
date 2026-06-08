@@ -23,6 +23,7 @@ interface DeliveryLog {
   category?: string | null
   quantity: string | null
   temp_at_delivery: number | null
+  temp_frozen?: number | null
   expiry_date: string | null
   quality_ok: boolean
   notes: string | null
@@ -63,19 +64,48 @@ function getCats(log: DeliveryLog): string[] {
   return []
 }
 
-function isTempWarn(temp: number | null, cats: string[]): boolean {
-  if (temp === null) return false
-  if (cats.includes('mrozonki') && temp > -18) return true
-  for (const cat of cats) {
-    const max = TEMP_MAX[cat]
-    if (max !== undefined && (temp < 0 || temp > max)) return true
+interface TempReading { label: string; value: number; warn: boolean }
+
+// Frozen and chilled goods have different norms — when a delivery mixes both,
+// each gets its own reading (temp_at_delivery for chilled, temp_frozen for frozen)
+// so neither is judged against the other's range.
+function getTempReadings(log: DeliveryLog): TempReading[] {
+  const cats = getCats(log)
+  const frozenSelected = cats.includes('mrozonki')
+  const chilledCats = cats.filter(c => c !== 'mrozonki' && TEMP_MAX[c] !== undefined)
+  const mixed = frozenSelected && chilledCats.length > 0
+  const readings: TempReading[] = []
+
+  if (chilledCats.length > 0 && log.temp_at_delivery !== null) {
+    const maxAllowed = Math.max(...chilledCats.map(c => TEMP_MAX[c]))
+    readings.push({
+      label: mixed ? 'Temp. (chłodzone)' : 'Temperatura',
+      value: log.temp_at_delivery,
+      warn: log.temp_at_delivery < 0 || log.temp_at_delivery > maxAllowed,
+    })
   }
-  return false
+
+  if (frozenSelected) {
+    const value = mixed ? (log.temp_frozen ?? null) : log.temp_at_delivery
+    if (value !== null) {
+      readings.push({ label: mixed ? 'Temp. (mrożonki)' : 'Temperatura', value, warn: value > -18 })
+    }
+  }
+
+  if (readings.length === 0 && log.temp_at_delivery !== null) {
+    readings.push({ label: 'Temperatura', value: log.temp_at_delivery, warn: false })
+  }
+
+  return readings
+}
+
+function isTempWarn(log: DeliveryLog): boolean {
+  return getTempReadings(log).some(r => r.warn)
 }
 
 function needsAttention(log: DeliveryLog): boolean {
   if (!log.quality_ok) return true
-  return isTempWarn(log.temp_at_delivery, getCats(log))
+  return isTempWarn(log)
 }
 
 function isToday(dateStr: string): boolean {
@@ -102,7 +132,7 @@ function matchesFilter(log: DeliveryLog, filter: FilterType): boolean {
   switch (filter) {
     case 'all': return true
     case 'today': return isToday(log.received_at)
-    case 'ok': return log.quality_ok && !isTempWarn(log.temp_at_delivery, cats)
+    case 'ok': return log.quality_ok && !isTempWarn(log)
     case 'nonconformant': return !log.quality_ok
     case 'chilled': return cats.some(c => ['mieso', 'drob', 'ryby', 'nabiał', 'wedliny', 'gotowe'].includes(c))
     case 'frozen': return cats.includes('mrozonki')
@@ -138,8 +168,7 @@ function CategoryIcon({ cats }: { cats: string[] }) {
 }
 
 function StatusBadge({ log }: { log: DeliveryLog }) {
-  const cats = getCats(log)
-  const tempWarn = isTempWarn(log.temp_at_delivery, cats)
+  const tempWarn = isTempWarn(log)
   if (!log.quality_ok) {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 shrink-0">
@@ -166,7 +195,6 @@ function StatusBadge({ log }: { log: DeliveryLog }) {
 
 function DetailModal({ log, supp, author, onClose }: { log: DeliveryLog; supp: Supplier | undefined; author?: string; onClose: () => void }) {
   const cats = getCats(log)
-  const tempWarn = isTempWarn(log.temp_at_delivery, cats)
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -227,15 +255,15 @@ function DetailModal({ log, supp, author, onClose }: { log: DeliveryLog; supp: S
                   <p className="text-sm font-semibold text-gray-900">{log.quantity}</p>
                 </div>
               )}
-              {log.temp_at_delivery !== null && (
-                <div className={cn('rounded-xl p-3', tempWarn ? 'bg-orange-50' : 'bg-blue-50')}>
-                  <p className={cn('text-[11px] mb-1', tempWarn ? 'text-orange-500' : 'text-blue-400')}>Temperatura</p>
-                  <p className={cn('text-sm font-semibold font-mono flex items-center gap-1', tempWarn ? 'text-orange-700' : 'text-blue-700')}>
-                    {log.temp_at_delivery}°C
-                    {tempWarn && <AlertTriangle size={13} />}
+              {getTempReadings(log).map((r, i) => (
+                <div key={i} className={cn('rounded-xl p-3', r.warn ? 'bg-orange-50' : 'bg-blue-50')}>
+                  <p className={cn('text-[11px] mb-1', r.warn ? 'text-orange-500' : 'text-blue-400')}>{r.label}</p>
+                  <p className={cn('text-sm font-semibold font-mono flex items-center gap-1', r.warn ? 'text-orange-700' : 'text-blue-700')}>
+                    {r.value}°C
+                    {r.warn && <AlertTriangle size={13} />}
                   </p>
                 </div>
-              )}
+              ))}
               {log.expiry_date && (
                 <div className="bg-gray-50 rounded-xl p-3">
                   <p className="text-[11px] text-gray-400 mb-1">Data ważności</p>
@@ -300,7 +328,6 @@ function categoryLabel(cats: string[]): string {
 
 function DeliveryCard({ log, supp, author, onClick }: { log: DeliveryLog; supp: Supplier | undefined; author?: string; onClick: () => void }) {
   const cats = getCats(log)
-  const tempWarn = isTempWarn(log.temp_at_delivery, cats)
 
   return (
     <div
@@ -333,16 +360,16 @@ function DeliveryCard({ log, supp, author, onClick }: { log: DeliveryLog; supp: 
               Ilość: <span className="text-gray-800 font-medium">{log.quantity}</span>
             </p>
           )}
-          {log.temp_at_delivery !== null && (
-            <p className={cn(
+          {getTempReadings(log).map((r, i) => (
+            <p key={i} className={cn(
               'text-xs flex items-center gap-1 font-medium',
-              tempWarn ? 'text-orange-600' : 'text-blue-600'
+              r.warn ? 'text-orange-600' : 'text-blue-600'
             )}>
               <Thermometer size={12} />
-              <span className="font-mono">{log.temp_at_delivery}°C</span>
-              {tempWarn && <AlertTriangle size={11} />}
+              <span className="font-mono">{r.value}°C</span>
+              {r.warn && <AlertTriangle size={11} />}
             </p>
-          )}
+          ))}
           {log.expiry_date && (
             <p className="text-xs text-gray-500">
               Termin: <span className="text-gray-800">{log.expiry_date}</span>
@@ -377,7 +404,7 @@ export function DeliveryList({ logs, suppMap, usersMap }: Props) {
   const [detail, setDetail] = useState<DeliveryLog | null>(null)
 
   const todayLogs = useMemo(() => logs.filter(l => isToday(l.received_at)), [logs])
-  const todayOk = useMemo(() => todayLogs.filter(l => l.quality_ok && !isTempWarn(l.temp_at_delivery, getCats(l))).length, [todayLogs])
+  const todayOk = useMemo(() => todayLogs.filter(l => l.quality_ok && !isTempWarn(l)).length, [todayLogs])
   const todayNonconf = useMemo(() => todayLogs.filter(l => !l.quality_ok).length, [todayLogs])
   const todayAttention = useMemo(() => todayLogs.filter(needsAttention).length, [todayLogs])
 
