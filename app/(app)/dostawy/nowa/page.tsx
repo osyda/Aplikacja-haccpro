@@ -90,7 +90,7 @@ export default function NowaDostawaPage() {
     nonconformity_desc: '',
     notes: '',
   })
-  const [file, setFile] = useState<File | null>(null)
+  const [files, setFiles] = useState<File[]>([])
   const [loading, setLoading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const scanRef = useRef<HTMLInputElement>(null)
@@ -130,7 +130,7 @@ export default function NowaDostawaPage() {
   async function handleScan(file: File) {
     setScanning(true)
     setScanResult(null)
-    setFile(file) // pre-fill step 4 attachment with the scanned file
+    setFiles([file]) // pre-fill step 4 attachment with the scanned file (e.g. invoice page 1 — more pages can be added below)
     try {
       const fd = new FormData()
       fd.append('file', file)
@@ -207,14 +207,15 @@ export default function NowaDostawaPage() {
     setLoading(true)
     const { locationId, userId } = await getCtx()
 
-    let photo_url: string | null = null
-    if (file) {
-      const ext = file.name.split('.').pop()
-      const filePath = `${locationId}/dostawy/${Date.now()}.${ext}`
-      const bucket = file.type === 'application/pdf' ? 'documents' : 'delivery-photos'
-      const { data: up, error: upErr } = await supabase.storage.from(bucket).upload(filePath, file)
+    const photo_urls: string[] = []
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i]
+      const ext = f.name.split('.').pop()
+      const filePath = `${locationId}/dostawy/${Date.now()}-${i}.${ext}`
+      const bucket = f.type === 'application/pdf' ? 'documents' : 'delivery-photos'
+      const { data: up, error: upErr } = await supabase.storage.from(bucket).upload(filePath, f)
       if (upErr) { toast.error('Błąd uploadu: ' + upErr.message); setLoading(false); return }
-      photo_url = supabase.storage.from(bucket).getPublicUrl(up.path).data.publicUrl
+      photo_urls.push(supabase.storage.from(bucket).getPublicUrl(up.path).data.publicUrl)
     }
 
     const notes = [form.notes, !form.quality_ok && form.nonconformity_desc ? `Niezgodność: ${form.nonconformity_desc}` : '']
@@ -231,7 +232,8 @@ export default function NowaDostawaPage() {
       expiry_date: form.expiry_date || null,
       quality_ok: form.quality_ok,
       notes,
-      photo_url,
+      photo_url: photo_urls[0] ?? null,
+      photo_urls: photo_urls.length ? photo_urls : null,
       received_at: new Date().toISOString(),
       recorded_by: userId,
     })
@@ -627,20 +629,32 @@ export default function NowaDostawaPage() {
 
           {/* File upload */}
           <div>
-            <label className="label">Dokument / zdjęcie <span className="text-gray-400 font-normal">(opcjonalne)</span></label>
-            <div className="flex items-center gap-2">
-              <label className="flex items-center gap-2 px-4 py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-sm text-gray-600 cursor-pointer hover:border-gray-300 transition-colors flex-1">
-                <Paperclip size={14} />
-                {file ? file.name : 'Wybierz plik (JPG, PNG, PDF)'}
-                <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden"
-                  onChange={e => setFile(e.target.files?.[0] ?? null)} />
-              </label>
-              {file && (
-                <button type="button" onClick={() => { setFile(null); if (fileRef.current) fileRef.current.value = '' }}>
-                  <X size={16} className="text-gray-400 hover:text-gray-600" />
-                </button>
-              )}
-            </div>
+            <label className="label">
+              Dokumenty / zdjęcia <span className="text-gray-400 font-normal">(opcjonalne — np. wszystkie strony faktury)</span>
+            </label>
+            <label className="flex items-center gap-2 px-4 py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-sm text-gray-600 cursor-pointer hover:border-gray-300 transition-colors">
+              <Paperclip size={14} />
+              {files.length > 0 ? `Dodaj kolejny plik (wybrano ${files.length})` : 'Wybierz pliki (JPG, PNG, PDF)'}
+              <input ref={fileRef} type="file" accept="image/*,.pdf" multiple className="hidden"
+                onChange={e => {
+                  const picked = Array.from(e.target.files ?? [])
+                  if (picked.length) setFiles(p => [...p, ...picked])
+                  if (fileRef.current) fileRef.current.value = ''
+                }} />
+            </label>
+            {files.length > 0 && (
+              <div className="mt-2 space-y-1.5">
+                {files.map((f, i) => (
+                  <div key={`${f.name}-${i}`} className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-gray-200 text-xs text-gray-600">
+                    <Paperclip size={12} className="text-gray-400 shrink-0" />
+                    <span className="flex-1 truncate">{f.name}</span>
+                    <button type="button" onClick={() => setFiles(p => p.filter((_, j) => j !== i))}>
+                      <X size={13} className="text-gray-400 hover:text-gray-600" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Notes */}

@@ -28,8 +28,15 @@ interface DeliveryLog {
   quality_ok: boolean
   notes: string | null
   photo_url: string | null
+  photo_urls: string[] | null
   received_at: string
   recorded_by: string | null
+}
+
+function logPhotos(log: DeliveryLog): string[] {
+  if (log.photo_urls?.length) return log.photo_urls
+  if (log.photo_url) return [log.photo_url]
+  return []
 }
 
 interface Props {
@@ -297,22 +304,31 @@ function DetailModal({ log, supp, author, onClose }: { log: DeliveryLog; supp: S
             </section>
           )}
 
-          {/* Attachment */}
-          {log.photo_url && (
+          {/* Attachments */}
+          {logPhotos(log).length > 0 && (
             <section>
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Załącznik</p>
-              <a
-                href={log.photo_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 p-3 rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors text-sm text-gray-700 hover:text-purple-700 group"
-              >
-                <div className="p-1.5 rounded-lg bg-purple-100 group-hover:bg-purple-200 transition-colors">
-                  <FileText size={14} className="text-purple-600" />
-                </div>
-                <span className="flex-1 font-medium">Podgląd dokumentu / zdjęcia</span>
-                <ExternalLink size={14} className="text-gray-400 shrink-0" />
-              </a>
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                {logPhotos(log).length > 1 ? `Załączniki (${logPhotos(log).length})` : 'Załącznik'}
+              </p>
+              <div className="space-y-1.5">
+                {logPhotos(log).map((url, i) => (
+                  <a
+                    key={url}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 p-3 rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors text-sm text-gray-700 hover:text-purple-700 group"
+                  >
+                    <div className="p-1.5 rounded-lg bg-purple-100 group-hover:bg-purple-200 transition-colors">
+                      <FileText size={14} className="text-purple-600" />
+                    </div>
+                    <span className="flex-1 font-medium">
+                      {logPhotos(log).length > 1 ? `Podgląd — strona ${i + 1}` : 'Podgląd dokumentu / zdjęcia'}
+                    </span>
+                    <ExternalLink size={14} className="text-gray-400 shrink-0" />
+                  </a>
+                ))}
+              </div>
             </section>
           )}
         </div>
@@ -379,16 +395,21 @@ function DeliveryCard({ log, supp, author, onClick }: { log: DeliveryLog; supp: 
           <div className="flex items-center gap-2 ml-auto">
             {author && <p className="text-xs text-gray-500 hidden sm:block">{author}</p>}
             <p className="text-xs text-gray-400">{formatDateTime(log.received_at)}</p>
-            {log.photo_url && (
+            {logPhotos(log).length > 0 && (
               <a
-                href={log.photo_url}
+                href={logPhotos(log)[0]}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={e => e.stopPropagation()}
-                title="Podgląd dokumentu"
-                className="p-1.5 rounded-lg border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors text-gray-400 hover:text-purple-600"
+                title={logPhotos(log).length > 1 ? `Podgląd dokumentu (${logPhotos(log).length} stron)` : 'Podgląd dokumentu'}
+                className="relative p-1.5 rounded-lg border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors text-gray-400 hover:text-purple-600"
               >
                 <Search size={14} />
+                {logPhotos(log).length > 1 && (
+                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-purple-500 text-white text-[9px] font-bold flex items-center justify-center leading-none">
+                    {logPhotos(log).length}
+                  </span>
+                )}
               </a>
             )}
           </div>
