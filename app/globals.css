@@ -55,4 +55,13 @@
   .pt-safe {
     padding-top: env(safe-area-inset-top, 0px);
   }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
 }
