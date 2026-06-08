@@ -14,11 +14,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Nieprawidłowa subskrypcja' }, { status: 400 })
   }
 
-  const { error } = await supabase.from('push_subscriptions').upsert(
-    { profile_id: user.id, endpoint, p256dh, auth_key: authKey },
-    { onConflict: 'endpoint' }
+  const { error } = await supabase.from('push_subscriptions').insert(
+    { profile_id: user.id, endpoint, p256dh, auth_key: authKey }
   )
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  // ignore duplicate endpoint (same device re-subscribing)
+  if (error && error.code !== '23505') {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
   return NextResponse.json({ ok: true })
 }

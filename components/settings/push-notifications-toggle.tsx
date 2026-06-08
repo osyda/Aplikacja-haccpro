@@ -50,11 +50,15 @@ export function PushNotificationsToggle() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys }),
       })
-      if (!res.ok) throw new Error('save failed')
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'save failed')
+      }
       setSubscribed(true)
       toast.success('Powiadomienia push włączone na tym urządzeniu')
-    } catch {
-      toast.error('Nie udało się włączyć powiadomień')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Nieznany błąd'
+      toast.error(`Nie udało się włączyć powiadomień: ${msg}`)
     } finally {
       setBusy(false)
     }
