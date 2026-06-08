@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { MapPin, Users, ChevronRight } from 'lucide-react'
 import { isOwnerRole } from '@/lib/permissions'
+import { PushNotificationsToggle } from '@/components/settings/push-notifications-toggle'
 
 export default async function UstawieniaPage() {
   const supabase = createClient()
@@ -45,6 +46,8 @@ export default async function UstawieniaPage() {
           </div>
         </div>
       </div>
+
+      <PushNotificationsToggle />
 
       {isOwner && (
         <div className="card divide-y divide-gray-50">

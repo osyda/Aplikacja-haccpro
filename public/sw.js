@@ -48,3 +48,32 @@ self.addEventListener('fetch', (event) => {
     })
   )
 })
+
+self.addEventListener('push', (event) => {
+  let payload = { title: 'HACCPro', body: 'Masz nowe powiadomienie.' }
+  if (event.data) {
+    try { payload = { ...payload, ...event.data.json() } } catch { payload.body = event.data.text() }
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      data: { url: payload.url || '/dashboard' },
+    })
+  )
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const url = event.notification.data?.url || '/dashboard'
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientsArr) => {
+      const existing = clientsArr.find((c) => c.url.includes(url))
+      if (existing) return existing.focus()
+      return self.clients.openWindow(url)
+    })
+  )
+})

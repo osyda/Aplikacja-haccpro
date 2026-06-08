@@ -125,6 +125,11 @@ function QuickEntryModal({ device, locationId, onClose, onSaved }: QuickEntryMod
         status: 'open',
         reported_by: user!.id,
       })
+      fetch('/api/push/notify-alarm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceName: device.name, temperature: tempNum }),
+      }).catch(() => {})
       toast.error(`ALARM: ${device.name} ${tempNum}°C poza normą — zgłoszono niezgodność`)
     } else {
       toast.success(`Temperatura zapisana — ${device.name} ${tempNum}°C`)
