@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Loader2, KeyRound, AlertCircle } from 'lucide-react'
+import { AuthCard } from '@/components/auth/auth-card'
 
 function SetPasswordContent() {
   const [name, setName] = useState('')
@@ -102,98 +103,95 @@ function SetPasswordContent() {
 
   if (checking) {
     return (
-      <div className="flex flex-col items-center py-8 gap-3">
-        <Loader2 size={24} className="animate-spin text-gray-400" />
-        <p className="text-sm text-gray-500">Weryfikowanie…</p>
-      </div>
+      <AuthCard
+        icon={<Loader2 size={16} className="text-brand-green animate-spin" />}
+        title="Weryfikowanie linku…"
+        subtitle="To zajmie tylko chwilę"
+      >
+        <div className="flex flex-col items-center py-6 gap-3">
+          <Loader2 size={24} className="animate-spin text-gray-400" />
+          <p className="text-sm text-gray-500">Łączenie z kontem…</p>
+        </div>
+      </AuthCard>
     )
   }
 
   if (hashError) {
     return (
-      <div className="space-y-5 text-center">
-        <div className="inline-flex items-center justify-center w-12 h-12 bg-red-100 rounded-xl mx-auto">
-          <AlertCircle size={22} className="text-red-500" />
-        </div>
-        <div>
-          <h2 className="text-lg font-bold text-gray-900">Link wygasł</h2>
-          <p className="text-sm text-gray-500 mt-1">{hashError}</p>
-        </div>
+      <AuthCard
+        icon={<AlertCircle size={16} className="text-red-400" />}
+        title="Link wygasł"
+        subtitle={hashError}
+      >
         <button
           onClick={() => router.push('/login')}
           className="w-full py-3 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
         >
           Wróć do logowania
         </button>
-      </div>
+      </AuthCard>
     )
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
-      <div className="text-center">
-        <div className="inline-flex items-center justify-center w-12 h-12 bg-green-100 rounded-xl mb-3">
-          <KeyRound size={22} className="text-green-600" />
-        </div>
-        <h2 className="text-xl font-bold text-gray-900">
-          {isRecovery ? 'Ustaw nowe hasło' : 'Witaj w HACCPro!'}
-        </h2>
-        <p className="text-sm text-gray-500 mt-1">
-          {isRecovery
-            ? 'Wpisz nowe hasło do swojego konta.'
-            : 'Zaproszenie przyjęte. Ustaw hasło aby logować się ponownie.'}
-        </p>
-      </div>
+    <AuthCard
+      icon={<KeyRound size={16} className="text-brand-green" />}
+      title={isRecovery ? 'Ustaw nowe hasło' : 'Witaj w HACCPro!'}
+      subtitle={isRecovery
+        ? 'Wpisz nowe hasło do swojego konta.'
+        : 'Zaproszenie przyjęte. Ustaw hasło, aby logować się ponownie.'}
+    >
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {!isRecovery && (
+          <div>
+            <label className="label">Imię i nazwisko</label>
+            <input
+              className="input"
+              placeholder="Jan Kowalski"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              autoComplete="name"
+            />
+          </div>
+        )}
 
-      {!isRecovery && (
         <div>
-          <label className="label">Imię i nazwisko</label>
+          <label className="label">Nowe hasło</label>
           <input
             className="input"
-            placeholder="Jan Kowalski"
-            value={name}
-            onChange={e => setName(e.target.value)}
-            autoComplete="name"
+            type="password"
+            placeholder="Minimum 8 znaków"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            autoComplete="new-password"
+            required
+            minLength={8}
           />
         </div>
-      )}
 
-      <div>
-        <label className="label">Nowe hasło</label>
-        <input
-          className="input"
-          type="password"
-          placeholder="Minimum 8 znaków"
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          autoComplete="new-password"
-          required
-          minLength={8}
-        />
-      </div>
+        <div>
+          <label className="label">Potwierdź hasło</label>
+          <input
+            className="input"
+            type="password"
+            placeholder="Powtórz hasło"
+            value={confirm}
+            onChange={e => setConfirm(e.target.value)}
+            autoComplete="new-password"
+            required
+          />
+        </div>
 
-      <div>
-        <label className="label">Potwierdź hasło</label>
-        <input
-          className="input"
-          type="password"
-          placeholder="Powtórz hasło"
-          value={confirm}
-          onChange={e => setConfirm(e.target.value)}
-          autoComplete="new-password"
-          required
-        />
-      </div>
-
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full py-3 rounded-xl bg-brand-green hover:bg-green-700 text-white font-semibold text-sm transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-      >
-        {loading && <Loader2 size={16} className="animate-spin" />}
-        {loading ? 'Zapisywanie…' : isRecovery ? 'Zmień hasło' : 'Ustaw hasło i wejdź do aplikacji'}
-      </button>
-    </form>
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full py-3 rounded-xl bg-brand-green hover:bg-green-700 text-white font-semibold text-sm transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+        >
+          {loading && <Loader2 size={16} className="animate-spin" />}
+          {loading ? 'Zapisywanie…' : isRecovery ? 'Zmień hasło' : 'Ustaw hasło i wejdź do aplikacji'}
+        </button>
+      </form>
+    </AuthCard>
   )
 }
 
