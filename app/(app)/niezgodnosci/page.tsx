@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/badge'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
+import { AlertBox } from '@/components/ui/alert-box'
 import { AlertTriangle, Plus, ChevronDown, ChevronUp, CheckCircle2, Thermometer, Loader2 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
@@ -47,7 +48,7 @@ function ResolveForm({ item, onResolved }: { item: Nonconformity; onResolved: ()
     <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
       <textarea
         rows={2}
-        placeholder="Co zostało zrobione? (opcjonalnie)"
+        placeholder="Co zostało zrobione? Zostaw puste, jeśli nie ma nic do dopisania."
         className="input resize-none text-sm"
         value={comment}
         onChange={e => setComment(e.target.value)}
@@ -65,7 +66,6 @@ function ResolveForm({ item, onResolved }: { item: Nonconformity; onResolved: ()
 }
 
 function NonconformityCard({ item, profilesMap, onChanged }: { item: Nonconformity; profilesMap: ProfilesMap; onChanged: () => void }) {
-  const [showResolve, setShowResolve] = useState(false)
   const isAlarm = item.source === 'temperature_alarm'
   const isOpen = item.status === 'open'
   const reporterName = profilesMap[item.reported_by] ?? ''
@@ -124,16 +124,7 @@ function NonconformityCard({ item, profilesMap, onChanged }: { item: Nonconformi
 
       {isOpen && (
         <div className="pl-7">
-          <button
-            onClick={() => setShowResolve(!showResolve)}
-            className="text-xs font-medium text-gray-500 hover:text-gray-700 flex items-center gap-1"
-          >
-            <CheckCircle2 size={12} />
-            {showResolve ? 'Anuluj' : 'Zamknij niezgodność'}
-          </button>
-          {showResolve && (
-            <ResolveForm item={item} onResolved={() => { setShowResolve(false); onChanged() }} />
-          )}
+          <ResolveForm item={item} onResolved={onChanged} />
         </div>
       )}
     </div>
@@ -202,15 +193,11 @@ export default function NiezgodnosciPage() {
       <PageHeader title="Niezgodności" subtitle="Rejestr niezgodności i działań korygujących" />
 
       {alarmCount > 0 && (
-        <div className="flex items-start gap-3 p-4 rounded-xl border-2 border-red-200 bg-red-50">
-          <Thermometer size={18} className="text-red-600 mt-0.5 shrink-0" />
-          <div>
-            <p className="font-bold text-red-800 text-sm">
-              {alarmCount === 1 ? '1 alarm temperatury wymaga działania' : `${alarmCount} alarmy temperatur wymagają działania`}
-            </p>
-            <p className="text-xs text-red-600 mt-0.5">Otwórz każdą niezgodność, opisz co zrobiono i zamknij.</p>
-          </div>
-        </div>
+        <AlertBox
+          variant="error"
+          title={alarmCount === 1 ? '1 alarm temperatury wymaga działania' : `${alarmCount} alarmy temperatur wymagają działania`}
+          description="Opisz, co zostało zrobione, i zamknij niezgodność poniżej."
+        />
       )}
 
       {/* Manual form */}
