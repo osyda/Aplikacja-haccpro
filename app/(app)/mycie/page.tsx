@@ -98,7 +98,7 @@ interface CleaningTask {
 interface Log {
   id: string; area: string; agent: string; cleaned_at: string
   notes: string | null; doc_url: string | null; recorded_by: string | null
-  cleaning_task_id: string | null
+  cleaning_task_id: string | null; performed_by: string | null
 }
 interface Profile { id: string; full_name: string | null }
 
@@ -159,8 +159,9 @@ export default function MyCiePage() {
   const [tasks, setTasks]         = useState<CleaningTask[]>([])
   const [usersMap, setUsersMap]   = useState<Record<string, string>>({})
   const [allProfiles, setAllProfiles] = useState<Profile[]>([])
-  const [customAreas, setCustomAreas]   = useState<string[]>([])
-  const [customAgents, setCustomAgents] = useState<string[]>([])
+  const [customAreas, setCustomAreas]     = useState<string[]>([])
+  const [customAgents, setCustomAgents]   = useState<string[]>([])
+  const [medicalWorkers, setMedicalWorkers] = useState<string[]>([])
 
   // Dziś — ad-hoc form
   const [area, setArea]   = useState('')
@@ -180,10 +181,12 @@ export default function MyCiePage() {
   const [showAdHoc, setShowAdHoc]   = useState(false)
 
   // Quick-execute modal
-  const [execTask, setExecTask]   = useState<CleaningTask | null>(null)
-  const [execNotes, setExecNotes] = useState('')
-  const [execFile, setExecFile]   = useState<File | null>(null)
-  const [execSaving, setExecSaving] = useState(false)
+  const [execTask, setExecTask]         = useState<CleaningTask | null>(null)
+  const [execNotes, setExecNotes]       = useState('')
+  const [execFile, setExecFile]         = useState<File | null>(null)
+  const [execSaving, setExecSaving]     = useState(false)
+  const [execWorker, setExecWorker]     = useState('')
+  const [execWorkerManual, setExecWorkerManual] = useState(false)
   const execFileRef = useRef<HTMLInputElement>(null)
 
   // Obszary — task form
@@ -217,14 +220,15 @@ export default function MyCiePage() {
     const perms = resolvePermissions(profile?.role, profile?.permissions as Partial<AppPermissions> | null)
     setCanManage(perms.cleaning_manage_areas)
 
-    const [logsRes, tasksRes, locRes, profsRes] = await Promise.all([
+    const [logsRes, tasksRes, locRes, profsRes, medRes] = await Promise.all([
       supabase.from('cleaning_logs')
-        .select('id,area,agent,cleaned_at,notes,doc_url,recorded_by,cleaning_task_id')
+        .select('id,area,agent,cleaned_at,notes,doc_url,recorded_by,cleaning_task_id,performed_by')
         .eq('location_id', locationId).order('cleaned_at', { ascending: false }).limit(200),
       supabase.from('cleaning_tasks')
         .select('*').eq('location_id', locationId).eq('is_active', true).order('created_at'),
       supabase.from('locations').select('cleaning_areas,cleaning_agents').eq('id', locationId).single(),
       supabase.from('profiles').select('id, full_name'),
+      supabase.from('medical_records').select('person_name').eq('location_id', locationId).order('person_name'),
     ])
 
     const rows: Log[] = logsRes.data ?? []
@@ -233,6 +237,8 @@ export default function MyCiePage() {
     setCustomAreas(locRes.data?.cleaning_areas ?? [])
     setCustomAgents(locRes.data?.cleaning_agents ?? [])
     setAllProfiles(profsRes.data ?? [])
+    const names = Array.from(new Set((medRes.data ?? []).map((r: { person_name: string }) => r.person_name).filter(Boolean))) as string[]
+    setMedicalWorkers(names)
 
     const ids = Array.from(new Set(rows.map(r => r.recorded_by).filter(Boolean) as string[]))
     if (ids.length > 0) {
@@ -242,6 +248,11 @@ export default function MyCiePage() {
   }
 
   useEffect(() => { fetchData() }, [])
+
+  useEffect(() => {
+    const saved = localStorage.getItem('cleaning_last_worker')
+    if (saved) setExecWorker(saved)
+  }, [])
 
   useEffect(() => {
     if (showTaskForm && taskFormRef.current) {
@@ -305,16 +316,19 @@ export default function MyCiePage() {
       if (uploadErr) { toast.error('Błąd uploadu: ' + uploadErr.message); setExecSaving(false); return }
       docUrl = supabase.storage.from('documents').getPublicUrl(upload.path).data.publicUrl
     }
+    const worker = execWorker.trim()
+    if (worker) localStorage.setItem('cleaning_last_worker', worker)
     const { error } = await supabase.from('cleaning_logs').insert({
       location_id: locId, area: execTask.area, agent: execTask.agent ?? '',
       concentration: null, cleaned_at: new Date().toISOString(),
       recorded_by: userId, notes: execNotes.trim() || null,
       doc_url: docUrl, cleaning_task_id: execTask.id,
+      performed_by: worker || null,
     })
     setExecSaving(false)
     if (error) { toast.error('Błąd zapisu: ' + error.message); return }
     toast.success(`Zadanie „${execTask.name}" wykonane!`)
-    setExecTask(null); setExecNotes(''); setExecFile(null)
+    setExecTask(null); setExecNotes(''); setExecFile(null); setExecWorkerManual(false)
     if (execFileRef.current) execFileRef.current.value = ''
     fetchData()
   }
@@ -409,7 +423,7 @@ export default function MyCiePage() {
     if (!locId) return
     setHistLoading(true); setHistSearched(true)
     let query = supabase.from('cleaning_logs')
-      .select('id,area,agent,cleaned_at,notes,doc_url,recorded_by,cleaning_task_id')
+      .select('id,area,agent,cleaned_at,notes,doc_url,recorded_by,cleaning_task_id,performed_by')
       .eq('location_id', locId).order('cleaned_at', { ascending: false }).limit(500)
     if (histDateFrom) query = query.gte('cleaned_at', histDateFrom + 'T00:00:00')
     if (histDateTo)   query = query.lte('cleaned_at', histDateTo   + 'T23:59:59')
@@ -535,7 +549,12 @@ export default function MyCiePage() {
                     {status !== 'done' && (
                       <button
                         type="button"
-                        onClick={() => { setExecTask(task); setExecNotes(''); setExecFile(null) }}
+                        onClick={() => {
+  setExecTask(task); setExecNotes(''); setExecFile(null)
+  const saved = localStorage.getItem('cleaning_last_worker') ?? ''
+  setExecWorker(saved)
+  setExecWorkerManual(saved !== '' && medicalWorkers.length > 0 && !medicalWorkers.includes(saved))
+}}
                         className="px-3 py-1.5 bg-brand-green text-white text-xs font-semibold rounded-lg hover:bg-brand-green-dark transition-colors"
                       >
                         Wykonaj
@@ -696,8 +715,10 @@ export default function MyCiePage() {
                           <Paperclip size={10} /> Załącznik
                         </a>
                       )}
-                      {log.recorded_by && usersMap[log.recorded_by] && (
-                        <p className="text-xs text-gray-500 mt-0.5">Zapisał/a: <span className="font-medium">{usersMap[log.recorded_by]}</span></p>
+                      {(log.performed_by || (log.recorded_by && usersMap[log.recorded_by])) && (
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Wykonał/a: <span className="font-medium">{log.performed_by || usersMap[log.recorded_by!]}</span>
+                        </p>
                       )}
                     </div>
                     <p className="text-xs text-gray-400 whitespace-nowrap mt-1">{formatDateTime(log.cleaned_at)}</p>
@@ -989,8 +1010,10 @@ export default function MyCiePage() {
                             <Paperclip size={10} /> Załącznik
                           </a>
                         )}
-                        {log.recorded_by && usersMap[log.recorded_by] && (
-                          <p className="text-xs text-gray-400">Zapisał/a: <span className="font-medium">{usersMap[log.recorded_by]}</span></p>
+                        {(log.performed_by || (log.recorded_by && usersMap[log.recorded_by])) && (
+                          <p className="text-xs text-gray-400">
+                            Wykonał/a: <span className="font-medium">{log.performed_by || usersMap[log.recorded_by!]}</span>
+                          </p>
                         )}
                       </div>
                       <p className="text-xs text-gray-400 whitespace-nowrap mt-1">{formatDateTime(log.cleaned_at)}</p>
@@ -1021,6 +1044,50 @@ export default function MyCiePage() {
                 className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400">
                 <X size={18} />
               </button>
+            </div>
+
+            {/* Worker picker */}
+            <div>
+              <label className="label">Kto wykonał? <span className="text-gray-400 font-normal">(opcjonalne)</span></label>
+              {medicalWorkers.length > 0 && !execWorkerManual ? (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    {medicalWorkers.map(w => (
+                      <button key={w} type="button" onClick={() => setExecWorker(w)}
+                        className={cn(
+                          'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+                          execWorker === w
+                            ? 'bg-brand-green text-white border-brand-green'
+                            : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
+                        )}>
+                        {w}
+                      </button>
+                    ))}
+                  </div>
+                  <button type="button"
+                    onClick={() => { setExecWorkerManual(true); setExecWorker('') }}
+                    className="mt-2 text-xs text-gray-400 hover:text-brand-navy transition-colors">
+                    + Wpisz inną osobę
+                  </button>
+                </>
+              ) : (
+                <div className="flex gap-2">
+                  <input className="input flex-1 text-sm" placeholder="Imię i nazwisko pracownika"
+                    value={execWorker} onChange={e => setExecWorker(e.target.value)}
+                    autoFocus={execWorkerManual} />
+                  {medicalWorkers.length > 0 && (
+                    <button type="button"
+                      onClick={() => {
+                        setExecWorkerManual(false)
+                        const saved = localStorage.getItem('cleaning_last_worker') ?? ''
+                        setExecWorker(medicalWorkers.includes(saved) ? saved : '')
+                      }}
+                      className="px-3 py-2 border border-gray-200 rounded-xl text-xs text-gray-600 hover:bg-gray-50 whitespace-nowrap">
+                      Wybierz z listy
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             <div>
