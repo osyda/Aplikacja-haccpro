@@ -553,12 +553,12 @@ export default function MyCiePage() {
                 {filteredDueTasks.some(x => x.status !== 'done') && (
                   bulkMode ? (
                     <button type="button" onClick={() => { setBulkMode(false); setSelectedIds(new Set()) }}
-                      className="text-xs text-red-400 hover:text-red-600 transition-colors font-medium">
-                      Anuluj zaznaczanie
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-50 text-red-500 border border-red-200 hover:bg-red-100 transition-colors">
+                      Anuluj
                     </button>
                   ) : (
                     <button type="button" onClick={() => { setBulkMode(true); setSelectedIds(new Set()) }}
-                      className="text-xs text-gray-400 hover:text-brand-navy transition-colors">
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200 transition-colors">
                       Zaznacz kilka
                     </button>
                   )
