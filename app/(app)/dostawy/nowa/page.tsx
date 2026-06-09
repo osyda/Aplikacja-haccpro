@@ -94,6 +94,8 @@ export default function NowaDostawaPage() {
   const [loading, setLoading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const scanRef = useRef<HTMLInputElement>(null)
+  const addScanRef = useRef<HTMLInputElement>(null)
+  const [scanFiles, setScanFiles] = useState<File[]>([])
   const [scanning, setScanning] = useState(false)
   const [scanResult, setScanResult] = useState<ScanResult | null>(null)
   const router = useRouter()
@@ -270,42 +272,28 @@ export default function NowaDostawaPage() {
             <span className="text-xs text-gray-400 font-normal">opcjonalnie</span>
           </div>
           {scanResult && (
-            <button type="button" onClick={() => { setScanResult(null); if (scanRef.current) scanRef.current.value = '' }}
+            <button type="button" onClick={() => { setScanResult(null); setScanFiles([]) }}
               className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
               <RotateCcw size={12} /> Skanuj ponownie
             </button>
           )}
         </div>
 
-        {!scanResult ? (
-          <label className={cn(
-            'flex items-center justify-center gap-3 w-full py-4 rounded-xl border-2 border-dashed cursor-pointer transition-all min-h-[64px]',
-            scanning
-              ? 'border-purple-300 bg-purple-50 cursor-wait'
-              : 'border-gray-200 hover:border-purple-300 hover:bg-purple-50'
-          )}>
-            {scanning ? (
-              <>
-                <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-                <span className="text-sm font-medium text-purple-700">Analizowanie faktury…</span>
-              </>
-            ) : (
-              <>
-                <Camera size={20} className="text-purple-400" />
-                <span className="text-sm font-medium text-gray-600">Zdjęcia, skany lub PDF faktury — można wybrać kilka stron naraz</span>
-              </>
-            )}
-            <input
-              ref={scanRef}
-              type="file"
-              accept="image/*,.pdf"
-              multiple
-              className="hidden"
-              disabled={scanning}
-              onChange={e => { const picked = Array.from(e.target.files ?? []); if (picked.length) handleScan(picked) }}
-            />
-          </label>
-        ) : (
+        {/* Hidden inputs */}
+        <input ref={scanRef} type="file" accept="image/*,.pdf" multiple className="hidden"
+          onChange={e => {
+            const picked = Array.from(e.target.files ?? [])
+            if (picked.length) setScanFiles(prev => [...prev, ...picked])
+            if (scanRef.current) scanRef.current.value = ''
+          }} />
+        <input ref={addScanRef} type="file" accept="image/*,.pdf" multiple className="hidden"
+          onChange={e => {
+            const picked = Array.from(e.target.files ?? [])
+            if (picked.length) setScanFiles(prev => [...prev, ...picked])
+            if (addScanRef.current) addScanRef.current.value = ''
+          }} />
+
+        {scanResult ? (
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-xs text-purple-700 font-semibold mb-1">
               <CheckCircle2 size={13} />
@@ -325,6 +313,44 @@ export default function NowaDostawaPage() {
               {scanResult.expiry_date && <div className="bg-white rounded-lg px-3 py-2 border border-purple-100"><span className="text-gray-400">Termin: </span><span className="font-medium text-gray-800">{scanResult.expiry_date}</span></div>}
             </div>
             <p className="text-xs text-purple-600 mt-1">Sprawdź dane w kolejnych krokach i popraw jeśli trzeba.</p>
+          </div>
+        ) : scanning ? (
+          <div className="flex items-center justify-center gap-3 py-5">
+            <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm font-medium text-purple-700">
+              Analizowanie {scanFiles.length} {scanFiles.length === 1 ? 'pliku' : 'plików'}…
+            </span>
+          </div>
+        ) : scanFiles.length === 0 ? (
+          /* Empty state — click to add first files */
+          <button type="button" onClick={() => scanRef.current?.click()}
+            className="flex items-center justify-center gap-3 w-full py-4 rounded-xl border-2 border-dashed border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-all min-h-[64px]">
+            <Camera size={20} className="text-purple-400" />
+            <span className="text-sm font-medium text-gray-600">Zrób zdjęcie lub wybierz plik (JPG, PNG, PDF)</span>
+          </button>
+        ) : (
+          /* Files staged — show list + add more + analyse button */
+          <div className="space-y-2">
+            <div className="space-y-1.5">
+              {scanFiles.map((f, i) => (
+                <div key={`${f.name}-${i}`} className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-purple-100 text-xs text-gray-700">
+                  <Paperclip size={12} className="text-purple-400 shrink-0" />
+                  <span className="flex-1 truncate font-medium">{f.name}</span>
+                  <button type="button" onClick={() => setScanFiles(prev => prev.filter((_, j) => j !== i))}>
+                    <X size={13} className="text-gray-400 hover:text-gray-600" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={() => addScanRef.current?.click()}
+              className="flex items-center gap-2 w-full px-3 py-2 border border-dashed border-gray-200 rounded-lg text-xs text-gray-500 hover:border-purple-300 hover:text-purple-600 transition-colors">
+              <Plus size={13} /> Dodaj kolejne zdjęcie / stronę
+            </button>
+            <button type="button" onClick={() => handleScan(scanFiles)}
+              className="w-full flex items-center justify-center gap-2 py-3 bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold rounded-xl transition-colors">
+              <Sparkles size={15} />
+              Analizuj {scanFiles.length === 1 ? '1 plik' : `${scanFiles.length} pliki/plików`}
+            </button>
           </div>
         )}
       </div>
