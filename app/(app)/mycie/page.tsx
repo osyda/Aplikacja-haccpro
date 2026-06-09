@@ -163,7 +163,6 @@ export default function MyCiePage() {
   const [customAgents, setCustomAgents] = useState<string[]>([])
 
   // Dziś — ad-hoc form
-  const [dept, setDept]   = useState<Dept | null>(null)
   const [area, setArea]   = useState('')
   const [agent, setAgent] = useState('')
   const [notes, setNotes] = useState('')
@@ -252,18 +251,7 @@ export default function MyCiePage() {
   }, [tasks, logs, todayStart])
 
   // Ad-hoc form helpers
-  function selectDept(d: Dept) {
-    setDept(d); setArea(''); setAgent('')
-    setShowAddArea(false); setShowAddAgent(false); setAreaSearch('')
-    setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
-  }
-  function applyCombo(a: string, ag: string, d: Dept) {
-    setDept(d); setArea(a); setAgent(ag)
-    setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80)
-  }
-
   async function handleSave() {
-    if (!dept) { toast.error('Wybierz dział.'); return }
     if (!area.trim()) { toast.error('Wybierz obszar mycia.'); return }
     if (!agent.trim()) { toast.error('Wybierz środek czyszczący.'); return }
     setSaving(true)
@@ -420,27 +408,19 @@ export default function MyCiePage() {
     setHistLoading(false)
   }
 
-  // Derived: areas / agents / combos
-  const deptAreas = useMemo(() =>
-    dept ? [...(DEPT[dept].areas as readonly string[]), ...customAreas] : [], [dept, customAreas])
-  const deptAgents = useMemo(() =>
-    dept ? [...(DEPT[dept].agents as readonly string[]), ...customAgents] : [], [dept, customAgents])
+  // Derived: combined areas / agents from both depts
+  const allAreas = useMemo(() => {
+    const predefined = [...DEPT.kitchen_back.areas, ...DEPT.service_hall.areas]
+    return Array.from(new Set([...predefined, ...customAreas]))
+  }, [customAreas])
+  const allAgents = useMemo(() => {
+    const predefined = [...DEPT.kitchen_back.agents, ...DEPT.service_hall.agents]
+    return Array.from(new Set([...predefined, ...customAgents]))
+  }, [customAgents])
   const visibleAreas = useMemo(() => {
     const q = areaSearch.trim().toLowerCase()
-    return q ? deptAreas.filter(a => a.toLowerCase().includes(q)) : deptAreas
-  }, [deptAreas, areaSearch])
-  const quickCombos = useMemo(() => {
-    if (!dept) return []
-    const relevant = logs.filter(l => deriveDept(l.area) === dept).slice(0, 30)
-    const counts = new Map<string, number>()
-    relevant.forEach(l => { const k = `${l.area}|||${l.agent}`; counts.set(k, (counts.get(k) ?? 0) + 1) })
-    const fromHistory = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5)
-      .map(([k]) => { const [a, ag] = k.split('|||'); return { area: a, agent: ag } })
-    if (fromHistory.length >= 3) return fromHistory
-    const seen = new Set(fromHistory.map(c => `${c.area}|||${c.agent}`))
-    const extras = (DEPT[dept].combos as readonly { area: string; agent: string }[]).filter(c => !seen.has(`${c.area}|||${c.agent}`))
-    return [...fromHistory, ...extras].slice(0, 5)
-  }, [logs, dept])
+    return q ? allAreas.filter(a => a.toLowerCase().includes(q)) : allAreas
+  }, [allAreas, areaSearch])
 
   function DeptBadge({ area: a }: { area: string }) {
     const d = deriveDept(a)
@@ -525,57 +505,9 @@ export default function MyCiePage() {
             </div>
           )}
 
-          {/* Department tiles */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {(Object.keys(DEPT) as Dept[]).map(key => {
-              const cfg = DEPT[key]; const isActive = dept === key
-              return (
-                <button key={key} type="button" onClick={() => selectDept(key)}
-                  className={cn('relative text-left p-4 rounded-2xl border-2 transition-all',
-                    isActive ? 'border-green-500 bg-green-50 shadow-sm' : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50')}>
-                  {isActive && (
-                    <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-green-500 flex items-center justify-center">
-                      <Check size={13} className="text-white" />
-                    </div>
-                  )}
-                  <p className={cn('font-bold text-base pr-8', isActive ? 'text-green-800' : 'text-gray-900')}>{cfg.label}</p>
-                  <p className={cn('text-xs mt-1', isActive ? 'text-green-600' : 'text-gray-400')}>{cfg.description}</p>
-                </button>
-              )
-            })}
-          </div>
-
-          {/* Quick combos */}
-          {dept && quickCombos.length > 0 && (
-            <div className="card space-y-2">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Najczęściej używane — {DEPT[dept].badge}</p>
-              <div className="space-y-1.5">
-                {quickCombos.map(({ area: a, agent: ag }) => {
-                  const isChosen = area === a && agent === ag
-                  return (
-                    <button key={`${a}+${ag}`} type="button" onClick={() => applyCombo(a, ag, dept)}
-                      className={cn('w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all text-left',
-                        isChosen ? 'border-green-400 bg-green-50' : 'border-gray-100 bg-white hover:border-brand-navy/20 hover:bg-brand-navy/5')}>
-                      <span className="text-sm">
-                        <span className="font-semibold text-gray-900">{a}</span>
-                        <span className="text-gray-400 mx-2 text-xs">+</span>
-                        <span className="text-gray-600">{ag}</span>
-                      </span>
-                      {isChosen ? <Check size={15} className="text-green-500 shrink-0" /> : <Plus size={15} className="text-gray-400 shrink-0" />}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
           {/* Ad-hoc entry form */}
-          {dept && (
-            <div className="card space-y-5" ref={formRef}>
-              <p className="font-bold text-gray-900">
-                Nowy wpis —{' '}
-                <span className={cn('text-sm font-semibold px-2 py-0.5 rounded-full', DEPT[dept].badgeCls)}>{DEPT[dept].badge}</span>
-              </p>
+          <div className="card space-y-5" ref={formRef}>
+              <p className="font-bold text-gray-900">Dodaj wpis mycia</p>
 
               {/* Areas */}
               <div>
@@ -597,7 +529,7 @@ export default function MyCiePage() {
                       className="px-3 py-2 bg-brand-navy text-white text-sm rounded-lg">Użyj</button>
                   </div>
                 )}
-                {deptAreas.length > 8 && (
+                {allAreas.length > 8 && (
                   <input className="input text-sm mb-2" placeholder="Szukaj obszaru…"
                     value={areaSearch} onChange={e => setAreaSearch(e.target.value)} />
                 )}
@@ -613,7 +545,7 @@ export default function MyCiePage() {
                     <p className="col-span-full text-xs text-gray-400 text-center py-3">Brak obszarów pasujących do &bdquo;{areaSearch}&rdquo;</p>
                   )}
                 </div>
-                {area && !deptAreas.includes(area) && (
+                {area && !allAreas.includes(area) && (
                   <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700">
                     <Check size={13} className="text-blue-500" /> Wybrany: <strong>{area}</strong>
                   </div>
@@ -641,7 +573,7 @@ export default function MyCiePage() {
                   </div>
                 )}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {deptAgents.map(ag => (
+                  {allAgents.map(ag => (
                     <button key={ag} type="button" onClick={() => setAgent(ag)}
                       className={cn('px-3 py-2.5 rounded-xl border-2 text-xs font-medium transition-all min-h-[44px] text-left',
                         agent === ag ? 'border-green-500 bg-green-50 text-green-800' : 'border-gray-100 bg-white text-gray-700 hover:border-green-200')}>
@@ -649,7 +581,7 @@ export default function MyCiePage() {
                     </button>
                   ))}
                 </div>
-                {agent && !deptAgents.includes(agent) && (
+                {agent && !allAgents.includes(agent) && (
                   <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700">
                     <Check size={13} className="text-blue-500" /> Wybrany: <strong>{agent}</strong>
                   </div>
@@ -685,11 +617,10 @@ export default function MyCiePage() {
                   saving ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-brand-green hover:bg-brand-green-dark text-white')}>
                 {saving ? 'Zapisywanie…' : 'Zapisz wpis mycia'}
               </button>
-            </div>
-          )}
+          </div>
 
-          {!dept && tasks.length === 0 && logs.length === 0 && (
-            <EmptyState icon={Droplets} title="Brak wpisów mycia." description="Wybierz dział powyżej, aby dodać wpis." />
+          {tasks.length === 0 && logs.length === 0 && (
+            <EmptyState icon={Droplets} title="Brak wpisów mycia." description="Wypełnij formularz powyżej, aby dodać pierwszy wpis." />
           )}
 
           {/* Today's entries */}
