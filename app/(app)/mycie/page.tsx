@@ -189,6 +189,15 @@ export default function MyCiePage() {
   const [execWorkerManual, setExecWorkerManual] = useState(false)
   const execFileRef = useRef<HTMLInputElement>(null)
 
+  // Bulk execute
+  const [bulkMode, setBulkMode]                   = useState(false)
+  const [selectedIds, setSelectedIds]             = useState<Set<string>>(new Set())
+  const [bulkModal, setBulkModal]                 = useState(false)
+  const [bulkNotes, setBulkNotes]                 = useState('')
+  const [bulkWorker, setBulkWorker]               = useState('')
+  const [bulkWorkerManual, setBulkWorkerManual]   = useState(false)
+  const [bulkSaving, setBulkSaving]               = useState(false)
+
   // Obszary — task form
   const taskFormRef = useRef<HTMLDivElement>(null)
   const [showTaskForm, setShowTaskForm] = useState(false)
@@ -330,6 +339,30 @@ export default function MyCiePage() {
     toast.success(`Zadanie „${execTask.name}" wykonane!`)
     setExecTask(null); setExecNotes(''); setExecFile(null); setExecWorkerManual(false)
     if (execFileRef.current) execFileRef.current.value = ''
+    fetchData()
+  }
+
+  // Bulk execute
+  async function handleBulkExec() {
+    const ids = Array.from(selectedIds)
+    const tasksToExec = dueTasks.filter(x => ids.includes(x.task.id) && x.status !== 'done').map(x => x.task)
+    if (tasksToExec.length === 0) return
+    setBulkSaving(true)
+    const worker = bulkWorker.trim()
+    if (worker) localStorage.setItem('cleaning_last_worker', worker)
+    const rows = tasksToExec.map(t => ({
+      location_id: locId, area: t.area, agent: t.agent ?? '',
+      concentration: null, cleaned_at: new Date().toISOString(),
+      recorded_by: userId, notes: bulkNotes.trim() || null,
+      doc_url: null, cleaning_task_id: t.id,
+      performed_by: worker || null,
+    }))
+    const { error } = await supabase.from('cleaning_logs').insert(rows)
+    setBulkSaving(false)
+    if (error) { toast.error('Błąd zapisu: ' + error.message); return }
+    toast.success(`Wykonano ${rows.length} ${rows.length === 1 ? 'zadanie' : 'zadania/zadań'}!`)
+    setBulkModal(false); setBulkMode(false); setSelectedIds(new Set())
+    setBulkNotes(''); setBulkWorkerManual(false)
     fetchData()
   }
 
@@ -515,54 +548,114 @@ export default function MyCiePage() {
           {/* Scheduled task list */}
           {filteredDueTasks.length > 0 && (
             <div className="card space-y-2">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Harmonogram na dziś</p>
-              {filteredDueTasks.map(({ task, status }) => (
-                <div key={task.id} className={cn(
-                  'flex items-center gap-3 px-3 py-3 rounded-xl border',
-                  status === 'done'    ? 'bg-gray-50 border-gray-100' :
-                  status === 'overdue' ? 'bg-red-50 border-red-200'   : 'bg-white border-gray-200'
-                )}>
-                  <div className="shrink-0">
-                    {status === 'done'    ? <CheckCircle2 size={18} className="text-green-500" />
-                     : status === 'overdue' ? <AlertCircle  size={18} className="text-red-500"   />
-                     : <Circle size={18} className="text-gray-300" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={cn('text-sm font-semibold truncate', status === 'done' ? 'text-gray-400 line-through' : 'text-gray-900')}>
-                      {task.name}
-                    </p>
-                    <p className="text-xs text-gray-400 truncate">{task.area}{task.agent ? ` · ${task.agent}` : ''}</p>
-                    {task.dept && (
-                      <span className={cn('inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full mt-0.5', DEPT[task.dept].badgeCls)}>
-                        {DEPT[task.dept].badge}
-                      </span>
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Harmonogram na dziś</p>
+                {filteredDueTasks.some(x => x.status !== 'done') && (
+                  bulkMode ? (
+                    <button type="button" onClick={() => { setBulkMode(false); setSelectedIds(new Set()) }}
+                      className="text-xs text-red-400 hover:text-red-600 transition-colors font-medium">
+                      Anuluj zaznaczanie
+                    </button>
+                  ) : (
+                    <button type="button" onClick={() => { setBulkMode(true); setSelectedIds(new Set()) }}
+                      className="text-xs text-gray-400 hover:text-brand-navy transition-colors">
+                      Zaznacz kilka
+                    </button>
+                  )
+                )}
+              </div>
+              {filteredDueTasks.map(({ task, status }) => {
+                const isSelectable = bulkMode && status !== 'done'
+                const isSelected   = selectedIds.has(task.id)
+                return (
+                  <div
+                    key={task.id}
+                    onClick={isSelectable ? () => setSelectedIds(prev => {
+                      const next = new Set(prev)
+                      next.has(task.id) ? next.delete(task.id) : next.add(task.id)
+                      return next
+                    }) : undefined}
+                    className={cn(
+                      'flex items-center gap-3 px-3 py-3 rounded-xl border transition-all',
+                      isSelectable ? 'cursor-pointer' : '',
+                      isSelected   ? 'bg-green-50 border-brand-green ring-1 ring-brand-green' :
+                      status === 'done'    ? 'bg-gray-50 border-gray-100' :
+                      status === 'overdue' ? 'bg-red-50 border-red-200'   : 'bg-white border-gray-200'
+                    )}
+                  >
+                    <div className="shrink-0">
+                      {bulkMode && status !== 'done' ? (
+                        <div className={cn(
+                          'w-5 h-5 rounded-md border-2 flex items-center justify-center',
+                          isSelected ? 'bg-brand-green border-brand-green' : 'border-gray-300 bg-white'
+                        )}>
+                          {isSelected && <Check size={12} className="text-white" />}
+                        </div>
+                      ) : (
+                        status === 'done'    ? <CheckCircle2 size={18} className="text-green-500" />
+                        : status === 'overdue' ? <AlertCircle  size={18} className="text-red-500"   />
+                        : <Circle size={18} className="text-gray-300" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={cn('text-sm font-semibold truncate', status === 'done' ? 'text-gray-400 line-through' : 'text-gray-900')}>
+                        {task.name}
+                      </p>
+                      <p className="text-xs text-gray-400 truncate">{task.area}{task.agent ? ` · ${task.agent}` : ''}</p>
+                      {task.dept && (
+                        <span className={cn('inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full mt-0.5', DEPT[task.dept].badgeCls)}>
+                          {DEPT[task.dept].badge}
+                        </span>
+                      )}
+                    </div>
+                    {!bulkMode && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={cn(
+                          'hidden sm:inline text-[10px] font-bold px-2 py-0.5 rounded-full',
+                          status === 'done'    ? 'bg-green-100 text-green-700' :
+                          status === 'overdue' ? 'bg-red-100 text-red-700'     : 'bg-blue-100 text-blue-700'
+                        )}>
+                          {status === 'done' ? 'Wykonane' : status === 'overdue' ? 'Zaległe' : 'Do zrobienia'}
+                        </span>
+                        {status !== 'done' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setExecTask(task); setExecNotes(''); setExecFile(null)
+                              const saved = localStorage.getItem('cleaning_last_worker') ?? ''
+                              setExecWorker(saved)
+                              setExecWorkerManual(saved !== '' && medicalWorkers.length > 0 && !medicalWorkers.includes(saved))
+                            }}
+                            className="px-3 py-1.5 bg-brand-green text-white text-xs font-semibold rounded-lg hover:bg-brand-green-dark transition-colors"
+                          >
+                            Wykonaj
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className={cn(
-                      'hidden sm:inline text-[10px] font-bold px-2 py-0.5 rounded-full',
-                      status === 'done'    ? 'bg-green-100 text-green-700' :
-                      status === 'overdue' ? 'bg-red-100 text-red-700'     : 'bg-blue-100 text-blue-700'
-                    )}>
-                      {status === 'done' ? 'Wykonane' : status === 'overdue' ? 'Zaległe' : 'Do zrobienia'}
-                    </span>
-                    {status !== 'done' && (
-                      <button
-                        type="button"
-                        onClick={() => {
-  setExecTask(task); setExecNotes(''); setExecFile(null)
-  const saved = localStorage.getItem('cleaning_last_worker') ?? ''
-  setExecWorker(saved)
-  setExecWorkerManual(saved !== '' && medicalWorkers.length > 0 && !medicalWorkers.includes(saved))
-}}
-                        className="px-3 py-1.5 bg-brand-green text-white text-xs font-semibold rounded-lg hover:bg-brand-green-dark transition-colors"
-                      >
-                        Wykonaj
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                )
+              })}
+            </div>
+          )}
+
+          {/* Bulk floating bar */}
+          {bulkMode && selectedIds.size > 0 && (
+            <div className="fixed bottom-20 inset-x-0 flex justify-center z-40 px-4 pointer-events-none">
+              <div className="bg-brand-navy text-white rounded-2xl shadow-2xl px-5 py-3 flex items-center gap-4 w-full max-w-md pointer-events-auto">
+                <p className="flex-1 text-sm font-medium">Zaznaczono: {selectedIds.size}</p>
+                <button type="button"
+                  onClick={() => {
+                    const saved = localStorage.getItem('cleaning_last_worker') ?? ''
+                    setBulkWorker(saved)
+                    setBulkWorkerManual(saved !== '' && medicalWorkers.length > 0 && !medicalWorkers.includes(saved))
+                    setBulkNotes('')
+                    setBulkModal(true)
+                  }}
+                  className="px-4 py-2 bg-brand-green text-white text-sm font-bold rounded-xl hover:bg-brand-green-dark transition-colors">
+                  Wykonaj zaznaczone
+                </button>
+              </div>
             </div>
           )}
 
@@ -1117,6 +1210,83 @@ export default function MyCiePage() {
               className={cn('w-full py-4 rounded-xl text-sm font-bold transition-colors',
                 execSaving ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-brand-green hover:bg-brand-green-dark text-white')}>
               {execSaving ? 'Zapisywanie…' : '✓ Wykonaj zadanie'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── BULK CONFIRM MODAL ──────────────────────────────────── */}
+      {bulkModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+          onClick={e => { if (e.target === e.currentTarget) setBulkModal(false) }}
+        >
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-bold text-gray-900">Zbiorcze wykonanie</p>
+                <p className="text-xs text-gray-500 mt-0.5">{selectedIds.size} {selectedIds.size === 1 ? 'zadanie' : 'zadania/zadań'} zostanie oznaczonych jako wykonane</p>
+              </div>
+              <button type="button" onClick={() => setBulkModal(false)}
+                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400">
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Worker picker */}
+            <div>
+              <label className="label">Kto wykonał? <span className="text-gray-400 font-normal">(opcjonalne)</span></label>
+              {medicalWorkers.length > 0 && !bulkWorkerManual ? (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    {medicalWorkers.map(w => (
+                      <button key={w} type="button" onClick={() => setBulkWorker(w)}
+                        className={cn(
+                          'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+                          bulkWorker === w
+                            ? 'bg-brand-green text-white border-brand-green'
+                            : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
+                        )}>
+                        {w}
+                      </button>
+                    ))}
+                  </div>
+                  <button type="button"
+                    onClick={() => { setBulkWorkerManual(true); setBulkWorker('') }}
+                    className="mt-2 text-xs text-gray-400 hover:text-brand-navy transition-colors">
+                    + Wpisz inną osobę
+                  </button>
+                </>
+              ) : (
+                <div className="flex gap-2">
+                  <input className="input flex-1 text-sm" placeholder="Imię i nazwisko pracownika"
+                    value={bulkWorker} onChange={e => setBulkWorker(e.target.value)}
+                    autoFocus={bulkWorkerManual} />
+                  {medicalWorkers.length > 0 && (
+                    <button type="button"
+                      onClick={() => {
+                        setBulkWorkerManual(false)
+                        const saved = localStorage.getItem('cleaning_last_worker') ?? ''
+                        setBulkWorker(medicalWorkers.includes(saved) ? saved : '')
+                      }}
+                      className="px-3 py-2 border border-gray-200 rounded-xl text-xs text-gray-600 hover:bg-gray-50 whitespace-nowrap">
+                      Wybierz z listy
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="label">Uwagi <span className="text-gray-400 font-normal">(opcjonalne — wspólne dla wszystkich)</span></label>
+              <input className="input text-sm" placeholder="Dodatkowe informacje…"
+                value={bulkNotes} onChange={e => setBulkNotes(e.target.value)} />
+            </div>
+
+            <button type="button" onClick={handleBulkExec} disabled={bulkSaving}
+              className={cn('w-full py-4 rounded-xl text-sm font-bold transition-colors',
+                bulkSaving ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-brand-green hover:bg-brand-green-dark text-white')}>
+              {bulkSaving ? 'Zapisywanie…' : `✓ Wykonaj ${selectedIds.size} zadania/zadań`}
             </button>
           </div>
         </div>

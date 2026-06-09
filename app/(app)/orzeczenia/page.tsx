@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Stethoscope, Plus, ChevronDown, ChevronUp, AlertTriangle,
-  Paperclip, X, Search, Sparkles, Loader2, CheckCircle2,
+  Paperclip, X, Search, Sparkles, Loader2, CheckCircle2, Trash2,
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -38,6 +38,7 @@ function StatusBadge({ validUntil }: { validUntil: string }) {
 
 export default function OrzeczenicaPage() {
   const [records, setRecords] = useState<MedRecord[]>([])
+  const [canDelete, setCanDelete] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [form, setForm] = useState({ person_name: '', pesel: '', valid_until: '', notes: '' })
   const [file, setFile] = useState<File | null>(null)
@@ -52,14 +53,23 @@ export default function OrzeczenicaPage() {
 
   async function getCtx() {
     const { data: { user } } = await supabase.auth.getUser()
-    const { data: profile } = await supabase.from('profiles').select('location_id').eq('id', user!.id).single()
-    return { locationId: profile?.location_id ?? '', userId: user!.id }
+    const { data: profile } = await supabase.from('profiles').select('location_id, role').eq('id', user!.id).single()
+    return { locationId: profile?.location_id ?? '', userId: user!.id, role: (profile?.role ?? '') as string }
   }
 
   async function fetchRecords() {
-    const { locationId } = await getCtx()
+    const { locationId, role } = await getCtx()
+    setCanDelete(role === 'owner')
     const { data } = await supabase.from('medical_records').select('*').eq('location_id', locationId).order('valid_until')
     setRecords(data ?? [])
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm('Usunąć to orzeczenie z rejestru? Tej operacji nie można cofnąć.')) return
+    const { error } = await supabase.from('medical_records').delete().eq('id', id)
+    if (error) { toast.error('Błąd: ' + error.message); return }
+    toast.success('Orzeczenie usunięte.')
+    fetchRecords()
   }
 
   useEffect(() => { fetchRecords() }, [])
@@ -319,21 +329,33 @@ export default function OrzeczenicaPage() {
                     <p className="text-xs text-gray-400 mt-0.5">Ważne do: {formatDate(r.valid_until)}</p>
                     {r.notes && <p className="text-xs text-gray-400 mt-0.5">{r.notes}</p>}
                   </div>
-                  {r.doc_url ? (
-                    <a
-                      href={r.doc_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="Podgląd orzeczenia"
-                      className="shrink-0 p-2 rounded-lg border border-gray-200 hover:border-purple-400 hover:bg-purple-50 transition-colors text-gray-400 hover:text-purple-600"
-                    >
-                      <Search size={16} />
-                    </a>
-                  ) : (
-                    <div className="shrink-0 p-2 rounded-lg border border-dashed border-gray-200 text-gray-300" title="Brak skanu">
-                      <Search size={16} />
-                    </div>
-                  )}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {r.doc_url ? (
+                      <a
+                        href={r.doc_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Podgląd orzeczenia"
+                        className="p-2 rounded-lg border border-gray-200 hover:border-purple-400 hover:bg-purple-50 transition-colors text-gray-400 hover:text-purple-600"
+                      >
+                        <Search size={16} />
+                      </a>
+                    ) : (
+                      <div className="p-2 rounded-lg border border-dashed border-gray-200 text-gray-300" title="Brak skanu">
+                        <Search size={16} />
+                      </div>
+                    )}
+                    {canDelete && (
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(r.id)}
+                        title="Usuń orzeczenie"
+                        className="p-2 rounded-lg border border-dashed border-red-200 text-red-400 hover:text-red-600 hover:border-red-400 hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
                 </div>
             ))}
           </div>
