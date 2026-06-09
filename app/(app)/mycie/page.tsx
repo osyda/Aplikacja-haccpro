@@ -558,7 +558,7 @@ export default function MyCiePage() {
                     </button>
                   ))}
                   {visibleAreas.length === 0 && (
-                    <p className="col-span-full text-xs text-gray-400 text-center py-3">Brak obszarów pasujących do „{areaSearch}"</p>
+                    <p className="col-span-full text-xs text-gray-400 text-center py-3">Brak obszarów pasujących do &bdquo;{areaSearch}&rdquo;</p>
                   )}
                 </div>
                 {area && !deptAreas.includes(area) && (
