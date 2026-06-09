@@ -35,7 +35,7 @@ function isOk(temp: number, min: number, max: number) {
 
 interface TempLog { id: string; device_name: string; temperature: number; min_ok: number; max_ok: number; measured_at: string; recorded_by: string | null; notes: string | null }
 interface DeliveryLog { id: string; supplier: string; product: string; quantity: string; temp_at_delivery: number | null; quality_ok: boolean; received_at: string; recorded_by: string | null; notes: string | null }
-interface CleaningLog { id: string; area: string; agent: string; concentration: string | null; cleaned_at: string; recorded_by: string | null; notes: string | null }
+interface CleaningLog { id: string; area: string; agent: string; concentration: string | null; cleaned_at: string; recorded_by: string | null; performed_by: string | null; notes: string | null }
 interface TrainingLog { id: string; topic: string; trainer: string; trained_at: string; attendees: string[] }
 interface NonconformityLog { id: string; description: string; corrective_action: string | null; resolve_comment: string | null; status: string; created_at: string; reported_by: string | null; resolved_by: string | null }
 interface DddLog { id: string; area: string; result: string; action_taken: string | null; inspector: string; inspected_at: string }
@@ -156,7 +156,7 @@ export function HacppPdfDocument({
                   <Text style={[styles.cell, { flex: 2 }]}>{log.agent}</Text>
                   <Text style={[styles.cell, { flex: 1 }]}>{log.concentration ?? '—'}</Text>
                   <Text style={[styles.cell, { flex: 2 }]}>{formatDateTime(log.cleaned_at)}</Text>
-                  <Text style={[styles.cell, { flex: 2 }]}>{name(profilesMap, log.recorded_by)}</Text>
+                  <Text style={[styles.cell, { flex: 2 }]}>{log.performed_by || name(profilesMap, log.recorded_by)}</Text>
                 </View>
               ))}
               {!data.mycie?.length && <Text style={[styles.cell, { padding: 8 }]}>Brak wpisów w tym okresie</Text>}
