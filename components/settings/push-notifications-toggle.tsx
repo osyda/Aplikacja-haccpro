@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Bell, BellOff } from 'lucide-react'
+import { Bell, BellOff, Share } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
@@ -16,13 +16,30 @@ function urlBase64ToUint8Array(base64String: string) {
   return output
 }
 
+function isIos() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent)
+}
+
+function isInStandaloneMode() {
+  return 'standalone' in navigator && (navigator as { standalone?: boolean }).standalone === true
+}
+
 export function PushNotificationsToggle() {
   const [supported, setSupported] = useState(false)
+  const [iosNotInstalled, setIosNotInstalled] = useState(false)
   const [subscribed, setSubscribed] = useState(false)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !VAPID_PUBLIC_KEY) return
+    if (!VAPID_PUBLIC_KEY) return
+
+    // iOS Safari without PWA install: show install instructions instead
+    if (isIos() && !isInStandaloneMode()) {
+      setIosNotInstalled(true)
+      return
+    }
+
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
     setSupported(true)
     navigator.serviceWorker.ready
       .then((reg) => reg.pushManager.getSubscription())
@@ -84,6 +101,24 @@ export function PushNotificationsToggle() {
     } finally {
       setBusy(false)
     }
+  }
+
+  if (iosNotInstalled) {
+    return (
+      <div className="card flex items-start gap-3">
+        <div className="p-2 rounded-lg shrink-0 bg-blue-50 text-blue-500">
+          <Share size={16} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-gray-900">Powiadomienia push</p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Na iPhone dodaj aplikację do ekranu głównego: naciśnij{' '}
+            <span className="font-medium">Udostępnij</span> →{' '}
+            <span className="font-medium">Dodaj do ekranu głównego</span>, a następnie otwórz HACCPro stamtąd.
+          </p>
+        </div>
+      </div>
+    )
   }
 
   if (!supported) return null
