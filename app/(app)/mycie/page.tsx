@@ -174,7 +174,10 @@ export default function MyCiePage() {
   const [showAddAgent, setShowAddAgent]         = useState(false)
   const [customAgentInput, setCustomAgentInput] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
-  const formRef = useRef<HTMLDivElement>(null)
+
+  // Dziś — dept filter + ad-hoc toggle
+  const [deptFilter, setDeptFilter] = useState<'all' | Dept>('all')
+  const [showAdHoc, setShowAdHoc]   = useState(false)
 
   // Quick-execute modal
   const [execTask, setExecTask]   = useState<CleaningTask | null>(null)
@@ -249,6 +252,10 @@ export default function MyCiePage() {
       .filter((x): x is { task: CleaningTask; status: TaskStatus } => x.status !== null)
       .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status])
   }, [tasks, logs, todayStart])
+
+  const filteredDueTasks = useMemo(() =>
+    deptFilter === 'all' ? dueTasks : dueTasks.filter(x => x.task.dept === deptFilter),
+  [dueTasks, deptFilter])
 
   // Ad-hoc form helpers
   async function handleSave() {
@@ -456,11 +463,39 @@ export default function MyCiePage() {
       {/* ─── DZIŚ ─────────────────────────────────────────────────── */}
       {tab === 'dzis' && (
         <div className="space-y-5">
-          {/* Scheduled task list */}
+          {/* Dept filter pills */}
           {dueTasks.length > 0 && (
+            <div className="flex gap-2 flex-wrap">
+              {([
+                { key: 'all',          label: 'Wszystkie' },
+                { key: 'kitchen_back', label: 'Kuchnia / Zaplecze' },
+                { key: 'service_hall', label: 'Sala' },
+              ] as const).map(({ key, label }) => (
+                <button key={key} type="button" onClick={() => setDeptFilter(key)}
+                  className={cn(
+                    'px-3 py-1.5 rounded-full text-xs font-semibold border transition-all',
+                    deptFilter === key
+                      ? key === 'kitchen_back' ? 'bg-orange-500 text-white border-orange-500'
+                        : key === 'service_hall' ? 'bg-blue-500 text-white border-blue-500'
+                        : 'bg-brand-navy text-white border-brand-navy'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                  )}>
+                  {label}
+                  {key !== 'all' && (
+                    <span className="ml-1 opacity-70">
+                      ({dueTasks.filter(x => x.task.dept === key).length})
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Scheduled task list */}
+          {filteredDueTasks.length > 0 && (
             <div className="card space-y-2">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Harmonogram na dziś</p>
-              {dueTasks.map(({ task, status }) => (
+              {filteredDueTasks.map(({ task, status }) => (
                 <div key={task.id} className={cn(
                   'flex items-center gap-3 px-3 py-3 rounded-xl border',
                   status === 'done'    ? 'bg-gray-50 border-gray-100' :
@@ -505,122 +540,135 @@ export default function MyCiePage() {
             </div>
           )}
 
-          {/* Ad-hoc entry form */}
-          <div className="card space-y-5" ref={formRef}>
-              <p className="font-bold text-gray-900">Dodaj wpis mycia</p>
+          {/* Ad-hoc entry — collapsible */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowAdHoc(v => !v)}
+              className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-brand-navy transition-colors"
+            >
+              <Plus size={13} />
+              {showAdHoc ? 'Ukryj formularz' : 'Dodaj wpis poza harmonogramem'}
+            </button>
 
-              {/* Areas */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm font-semibold text-gray-700">Obszar mycia</p>
-                  {canManage && (
-                    <button type="button" onClick={() => { setShowAddArea(!showAddArea); setCustomAreaInput('') }}
-                      className="text-xs text-brand-navy hover:underline">
-                      {showAddArea ? 'Anuluj' : '+ Inny obszar'}
-                    </button>
-                  )}
-                </div>
-                {showAddArea && (
-                  <div className="flex gap-2 mb-3">
-                    <input className="input flex-1 text-sm" autoFocus placeholder="Wpisz nazwę obszaru"
-                      value={customAreaInput} onChange={e => setCustomAreaInput(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); setArea(customAreaInput.trim()); setShowAddArea(false) } }} />
-                    <button type="button" onClick={() => { setArea(customAreaInput.trim()); setShowAddArea(false) }}
-                      className="px-3 py-2 bg-brand-navy text-white text-sm rounded-lg">Użyj</button>
-                  </div>
-                )}
-                {allAreas.length > 8 && (
-                  <input className="input text-sm mb-2" placeholder="Szukaj obszaru…"
-                    value={areaSearch} onChange={e => setAreaSearch(e.target.value)} />
-                )}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-52 overflow-y-auto pr-0.5">
-                  {visibleAreas.map(a => (
-                    <button key={a} type="button" onClick={() => setArea(a)}
-                      className={cn('px-3 py-2.5 rounded-xl border-2 text-xs font-medium transition-all min-h-[44px] text-left',
-                        area === a ? 'border-green-500 bg-green-50 text-green-800' : 'border-gray-100 bg-white text-gray-700 hover:border-green-200')}>
-                      {a}
-                    </button>
-                  ))}
-                  {visibleAreas.length === 0 && (
-                    <p className="col-span-full text-xs text-gray-400 text-center py-3">Brak obszarów pasujących do &bdquo;{areaSearch}&rdquo;</p>
-                  )}
-                </div>
-                {area && !allAreas.includes(area) && (
-                  <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700">
-                    <Check size={13} className="text-blue-500" /> Wybrany: <strong>{area}</strong>
-                  </div>
-                )}
-              </div>
+            {showAdHoc && (
+              <div className="card space-y-5 mt-3">
+                <p className="font-bold text-gray-900">Wpis poza harmonogramem</p>
 
-              {/* Agents */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm font-semibold text-gray-700">Środek czyszczący / dezynfekcyjny</p>
-                  {canManage && (
-                    <button type="button" onClick={() => { setShowAddAgent(!showAddAgent); setCustomAgentInput('') }}
-                      className="text-xs text-brand-navy hover:underline">
-                      {showAddAgent ? 'Anuluj' : '+ Inny środek'}
-                    </button>
-                  )}
-                </div>
-                {showAddAgent && (
-                  <div className="flex gap-2 mb-3">
-                    <input className="input flex-1 text-sm" autoFocus placeholder="Wpisz nazwę środka"
-                      value={customAgentInput} onChange={e => setCustomAgentInput(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); setAgent(customAgentInput.trim()); setShowAddAgent(false) } }} />
-                    <button type="button" onClick={() => { setAgent(customAgentInput.trim()); setShowAddAgent(false) }}
-                      className="px-3 py-2 bg-brand-navy text-white text-sm rounded-lg">Użyj</button>
-                  </div>
-                )}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {allAgents.map(ag => (
-                    <button key={ag} type="button" onClick={() => setAgent(ag)}
-                      className={cn('px-3 py-2.5 rounded-xl border-2 text-xs font-medium transition-all min-h-[44px] text-left',
-                        agent === ag ? 'border-green-500 bg-green-50 text-green-800' : 'border-gray-100 bg-white text-gray-700 hover:border-green-200')}>
-                      {ag}
-                    </button>
-                  ))}
-                </div>
-                {agent && !allAgents.includes(agent) && (
-                  <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700">
-                    <Check size={13} className="text-blue-500" /> Wybrany: <strong>{agent}</strong>
-                  </div>
-                )}
-              </div>
-
-              {/* Notes + file */}
-              <div className="space-y-3">
+                {/* Areas */}
                 <div>
-                  <label className="label">Uwagi <span className="text-gray-400 font-normal">(opcjonalne)</span></label>
-                  <input className="input" placeholder="Dodatkowe informacje" value={notes} onChange={e => setNotes(e.target.value)} />
-                </div>
-                <div>
-                  <label className="label">Załącznik <span className="text-gray-400 font-normal">(opcjonalne)</span></label>
-                  <div className="flex items-center gap-2">
-                    <label className="flex items-center gap-2 px-4 py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-sm text-gray-600 cursor-pointer hover:border-gray-300 flex-1">
-                      <Paperclip size={14} />
-                      {file ? file.name : 'Wybierz plik (JPG, PNG, PDF)'}
-                      <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden"
-                        onChange={e => setFile(e.target.files?.[0] ?? null)} />
-                    </label>
-                    {file && (
-                      <button type="button" onClick={() => { setFile(null); if (fileRef.current) fileRef.current.value = '' }}>
-                        <X size={16} className="text-gray-400 hover:text-gray-600" />
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-semibold text-gray-700">Obszar mycia</p>
+                    {canManage && (
+                      <button type="button" onClick={() => { setShowAddArea(!showAddArea); setCustomAreaInput('') }}
+                        className="text-xs text-brand-navy hover:underline">
+                        {showAddArea ? 'Anuluj' : '+ Inny obszar'}
                       </button>
                     )}
                   </div>
+                  {showAddArea && (
+                    <div className="flex gap-2 mb-3">
+                      <input className="input flex-1 text-sm" autoFocus placeholder="Wpisz nazwę obszaru"
+                        value={customAreaInput} onChange={e => setCustomAreaInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); setArea(customAreaInput.trim()); setShowAddArea(false) } }} />
+                      <button type="button" onClick={() => { setArea(customAreaInput.trim()); setShowAddArea(false) }}
+                        className="px-3 py-2 bg-brand-navy text-white text-sm rounded-lg">Użyj</button>
+                    </div>
+                  )}
+                  {allAreas.length > 8 && (
+                    <input className="input text-sm mb-2" placeholder="Szukaj obszaru…"
+                      value={areaSearch} onChange={e => setAreaSearch(e.target.value)} />
+                  )}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-52 overflow-y-auto pr-0.5">
+                    {visibleAreas.map(a => (
+                      <button key={a} type="button" onClick={() => setArea(a)}
+                        className={cn('px-3 py-2.5 rounded-xl border-2 text-xs font-medium transition-all min-h-[44px] text-left',
+                          area === a ? 'border-green-500 bg-green-50 text-green-800' : 'border-gray-100 bg-white text-gray-700 hover:border-green-200')}>
+                        {a}
+                      </button>
+                    ))}
+                    {visibleAreas.length === 0 && (
+                      <p className="col-span-full text-xs text-gray-400 text-center py-3">Brak obszarów pasujących do &bdquo;{areaSearch}&rdquo;</p>
+                    )}
+                  </div>
+                  {area && !allAreas.includes(area) && (
+                    <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700">
+                      <Check size={13} className="text-blue-500" /> Wybrany: <strong>{area}</strong>
+                    </div>
+                  )}
                 </div>
-              </div>
 
-              <button type="button" onClick={handleSave} disabled={saving}
-                className={cn('w-full py-4 rounded-xl text-sm font-bold transition-colors min-h-[56px]',
-                  saving ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-brand-green hover:bg-brand-green-dark text-white')}>
-                {saving ? 'Zapisywanie…' : 'Zapisz wpis mycia'}
-              </button>
+                {/* Agents */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-semibold text-gray-700">Środek czyszczący / dezynfekcyjny</p>
+                    {canManage && (
+                      <button type="button" onClick={() => { setShowAddAgent(!showAddAgent); setCustomAgentInput('') }}
+                        className="text-xs text-brand-navy hover:underline">
+                        {showAddAgent ? 'Anuluj' : '+ Inny środek'}
+                      </button>
+                    )}
+                  </div>
+                  {showAddAgent && (
+                    <div className="flex gap-2 mb-3">
+                      <input className="input flex-1 text-sm" autoFocus placeholder="Wpisz nazwę środka"
+                        value={customAgentInput} onChange={e => setCustomAgentInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); setAgent(customAgentInput.trim()); setShowAddAgent(false) } }} />
+                      <button type="button" onClick={() => { setAgent(customAgentInput.trim()); setShowAddAgent(false) }}
+                        className="px-3 py-2 bg-brand-navy text-white text-sm rounded-lg">Użyj</button>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {allAgents.map(ag => (
+                      <button key={ag} type="button" onClick={() => setAgent(ag)}
+                        className={cn('px-3 py-2.5 rounded-xl border-2 text-xs font-medium transition-all min-h-[44px] text-left',
+                          agent === ag ? 'border-green-500 bg-green-50 text-green-800' : 'border-gray-100 bg-white text-gray-700 hover:border-green-200')}>
+                        {ag}
+                      </button>
+                    ))}
+                  </div>
+                  {agent && !allAgents.includes(agent) && (
+                    <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700">
+                      <Check size={13} className="text-blue-500" /> Wybrany: <strong>{agent}</strong>
+                    </div>
+                  )}
+                </div>
+
+                {/* Notes + file */}
+                <div className="space-y-3">
+                  <div>
+                    <label className="label">Uwagi <span className="text-gray-400 font-normal">(opcjonalne)</span></label>
+                    <input className="input" placeholder="Dodatkowe informacje" value={notes} onChange={e => setNotes(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Załącznik <span className="text-gray-400 font-normal">(opcjonalne)</span></label>
+                    <div className="flex items-center gap-2">
+                      <label className="flex items-center gap-2 px-4 py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-sm text-gray-600 cursor-pointer hover:border-gray-300 flex-1">
+                        <Paperclip size={14} />
+                        {file ? file.name : 'Wybierz plik (JPG, PNG, PDF)'}
+                        <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden"
+                          onChange={e => setFile(e.target.files?.[0] ?? null)} />
+                      </label>
+                      {file && (
+                        <button type="button" onClick={() => { setFile(null); if (fileRef.current) fileRef.current.value = '' }}>
+                          <X size={16} className="text-gray-400 hover:text-gray-600" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <button type="button" onClick={handleSave} disabled={saving}
+                  className={cn('w-full py-4 rounded-xl text-sm font-bold transition-colors min-h-[56px]',
+                    saving ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-brand-green hover:bg-brand-green-dark text-white')}>
+                  {saving ? 'Zapisywanie…' : 'Zapisz wpis mycia'}
+                </button>
+              </div>
+            )}
           </div>
 
           {tasks.length === 0 && logs.length === 0 && (
-            <EmptyState icon={Droplets} title="Brak wpisów mycia." description="Wypełnij formularz powyżej, aby dodać pierwszy wpis." />
+            <EmptyState icon={Droplets} title="Brak wpisów mycia." description="Kliknij &bdquo;Dodaj wpis poza harmonogramem&rdquo; aby dodać pierwszy wpis." />
           )}
 
           {/* Today's entries */}
