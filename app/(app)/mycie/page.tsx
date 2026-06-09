@@ -187,6 +187,7 @@ export default function MyCiePage() {
   const execFileRef = useRef<HTMLInputElement>(null)
 
   // Obszary — task form
+  const taskFormRef = useRef<HTMLDivElement>(null)
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [editTask, setEditTask]         = useState<CleaningTask | null>(null)
   const [tf, setTf] = useState({ name: '', area: '', agent: '', frequency: 'daily' as Frequency, day_of_week: 0, day_of_month: 1, dept: '' as Dept | '' })
@@ -241,6 +242,12 @@ export default function MyCiePage() {
   }
 
   useEffect(() => { fetchData() }, [])
+
+  useEffect(() => {
+    if (showTaskForm && taskFormRef.current) {
+      taskFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [showTaskForm])
 
   const todayStart = useMemo(() => new Date(getTodayStart()), [])
   const todayLogs  = useMemo(() => logs.filter(l => new Date(l.cleaned_at) >= todayStart), [logs, todayStart])
@@ -724,7 +731,7 @@ export default function MyCiePage() {
           </div>
 
           {showTaskForm && (
-            <div className="card space-y-4 border-2 border-brand-green/20">
+            <div ref={taskFormRef} className="card space-y-4 border-2 border-brand-green/20">
               <p className="font-bold text-gray-900">{editTask ? 'Edytuj zadanie' : 'Nowe zadanie'}</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
