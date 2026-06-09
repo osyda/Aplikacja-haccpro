@@ -93,7 +93,7 @@ const DOW_FULL  = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', '
 interface CleaningTask {
   id: string; name: string; area: string; agent: string | null
   frequency: Frequency; day_of_week: number | null; day_of_month: number | null
-  is_active: boolean; created_at: string
+  dept: Dept | null; is_active: boolean; created_at: string
 }
 interface Log {
   id: string; area: string; agent: string; cleaned_at: string
@@ -187,7 +187,7 @@ export default function MyCiePage() {
   // Obszary — task form
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [editTask, setEditTask]         = useState<CleaningTask | null>(null)
-  const [tf, setTf] = useState({ name: '', area: '', agent: '', frequency: 'daily' as Frequency, day_of_week: 0, day_of_month: 1 })
+  const [tf, setTf] = useState({ name: '', area: '', agent: '', frequency: 'daily' as Frequency, day_of_week: 0, day_of_month: 1, dept: '' as Dept | '' })
   const [taskSaving, setTaskSaving] = useState(false)
 
   // Historia — filters
@@ -320,12 +320,12 @@ export default function MyCiePage() {
   // Task management
   function openAddTask() {
     setEditTask(null)
-    setTf({ name: '', area: '', agent: '', frequency: 'daily', day_of_week: 0, day_of_month: 1 })
+    setTf({ name: '', area: '', agent: '', frequency: 'daily', day_of_week: 0, day_of_month: 1, dept: '' })
     setShowTaskForm(true)
   }
   function openEditTask(t: CleaningTask) {
     setEditTask(t)
-    setTf({ name: t.name, area: t.area, agent: t.agent ?? '', frequency: t.frequency, day_of_week: t.day_of_week ?? 0, day_of_month: t.day_of_month ?? 1 })
+    setTf({ name: t.name, area: t.area, agent: t.agent ?? '', frequency: t.frequency, day_of_week: t.day_of_week ?? 0, day_of_month: t.day_of_month ?? 1, dept: t.dept ?? '' })
     setShowTaskForm(true)
   }
   async function handleSaveTask() {
@@ -336,6 +336,7 @@ export default function MyCiePage() {
       agent: tf.agent.trim() || null, frequency: tf.frequency,
       day_of_week:  tf.frequency === 'weekly'  ? tf.day_of_week  : null,
       day_of_month: tf.frequency === 'monthly' ? tf.day_of_month : null,
+      dept: tf.dept || null,
       is_active: true, created_by: userId,
     }
     const { error } = editTask
@@ -359,37 +360,38 @@ export default function MyCiePage() {
   async function handleSeedDefaults() {
     if (!confirm('Dodać domyślne zadania mycia? Zostaną dodane do istniejących.')) return
     setSeedLoading(true)
-    const defaults = [
+    const defaults: { name: string; area: string; agent: string; frequency: string; dept: Dept | null; day_of_week?: number; day_of_month?: number }[] = [
       // Codziennie — kuchnia
-      { name: 'Mycie blatów roboczych',      area: 'Blaty robocze',        agent: 'Suma Bac D10',          frequency: 'daily'   },
-      { name: 'Mycie zlewów',                area: 'Zlewy',                agent: 'Suma Bac D10',          frequency: 'daily'   },
-      { name: 'Dezynfekcja desek i noży',    area: 'Deski i noże',         agent: 'Suma Bac D10',          frequency: 'daily'   },
-      { name: 'Mycie podłogi kuchni',        area: 'Podłoga kuchnia',      agent: 'Środek do podłóg',      frequency: 'daily'   },
-      { name: 'Mycie zmywaka',               area: 'Zmywak',               agent: 'Fairy',                 frequency: 'daily'   },
+      { name: 'Mycie blatów roboczych',       area: 'Blaty robocze',            agent: 'Suma Bac D10',         frequency: 'daily',   dept: 'kitchen_back' },
+      { name: 'Mycie zlewów — kuchnia',       area: 'Zlewy',                    agent: 'Suma Bac D10',         frequency: 'daily',   dept: 'kitchen_back' },
+      { name: 'Dezynfekcja desek i noży',     area: 'Deski i noże',             agent: 'Suma Bac D10',         frequency: 'daily',   dept: 'kitchen_back' },
+      { name: 'Mycie podłogi kuchni',         area: 'Podłoga kuchnia',          agent: 'Środek do podłóg',     frequency: 'daily',   dept: 'kitchen_back' },
+      { name: 'Mycie zmywaka',                area: 'Zmywak',                   agent: 'Fairy',                frequency: 'daily',   dept: 'kitchen_back' },
       // Codziennie — sala
-      { name: 'Mycie stolików',              area: 'Stoliki',              agent: 'Clinex',                frequency: 'daily'   },
-      { name: 'Mycie baru',                  area: 'Bar',                  agent: 'Clinex',                frequency: 'daily'   },
-      { name: 'Mycie ekspresu do kawy',      area: 'Ekspres do kawy',      agent: 'Clinex',                frequency: 'daily'   },
-      { name: 'Mycie toalet',                area: 'Toalety',              agent: 'Domestos',              frequency: 'daily'   },
-      { name: 'Mycie podłogi sali',          area: 'Podłoga sala',         agent: 'Środek do podłóg',      frequency: 'daily'   },
-      { name: 'Mycie podłogi toalet',        area: 'Podłoga toalety',      agent: 'Środek do podłóg',      frequency: 'daily'   },
+      { name: 'Mycie stolików',               area: 'Stoliki',                  agent: 'Clinex',               frequency: 'daily',   dept: 'service_hall' },
+      { name: 'Mycie baru',                   area: 'Bar',                      agent: 'Clinex',               frequency: 'daily',   dept: 'service_hall' },
+      { name: 'Mycie ekspresu do kawy',       area: 'Ekspres do kawy',          agent: 'Clinex',               frequency: 'daily',   dept: 'service_hall' },
+      { name: 'Mycie toalet',                 area: 'Toalety',                  agent: 'Domestos',             frequency: 'daily',   dept: 'service_hall' },
+      { name: 'Mycie podłogi sali',           area: 'Podłoga sala',             agent: 'Środek do podłóg',     frequency: 'daily',   dept: 'service_hall' },
+      { name: 'Mycie zlewów — sala',          area: 'Umywalki',                 agent: 'Clinex',               frequency: 'daily',   dept: 'service_hall' },
       // Tygodniowo — kuchnia
-      { name: 'Mycie chłodni',               area: 'Chłodnia',             agent: 'Incidin Plus',          frequency: 'weekly',  day_of_week: 0 },
-      { name: 'Mycie lodówki kuchennej',     area: 'Lodówka kuchnia duża', agent: 'Incidin Plus',          frequency: 'weekly',  day_of_week: 2 },
-      { name: 'Mycie piekarnika',            area: 'Piekarnik',            agent: 'Środek do piekarnika',  frequency: 'weekly',  day_of_week: 1 },
-      { name: 'Mycie okapu',                 area: 'Okap',                 agent: 'Clinex',                frequency: 'weekly',  day_of_week: 4 },
-      { name: 'Mycie pizzerki',              area: 'Pizzerka',             agent: 'Fairy',                 frequency: 'weekly',  day_of_week: 3 },
+      { name: 'Mycie chłodni',                area: 'Chłodnia',                 agent: 'Incidin Plus',         frequency: 'weekly',  dept: 'kitchen_back', day_of_week: 0 },
+      { name: 'Mycie lodówki kuchennej',      area: 'Lodówka kuchnia duża',     agent: 'Incidin Plus',         frequency: 'weekly',  dept: 'kitchen_back', day_of_week: 2 },
+      { name: 'Mycie piekarnika',             area: 'Piekarnik',                agent: 'Środek do piekarnika', frequency: 'weekly',  dept: 'kitchen_back', day_of_week: 1 },
+      { name: 'Mycie okapu',                  area: 'Okap',                     agent: 'Clinex',               frequency: 'weekly',  dept: 'kitchen_back', day_of_week: 4 },
+      { name: 'Mycie pizzerki',               area: 'Pizzerka',                 agent: 'Fairy',                frequency: 'weekly',  dept: 'kitchen_back', day_of_week: 3 },
       // Tygodniowo — sala
-      { name: 'Mycie witryny',               area: 'Witryna',              agent: 'Płyn do szyb',          frequency: 'weekly',  day_of_week: 4 },
-      { name: 'Mycie lodówek barowych',      area: 'Lodówki barowe',       agent: 'Incidin Plus',          frequency: 'weekly',  day_of_week: 0 },
-      // Miesięcznie
-      { name: 'Mycie regałów magazynowych',  area: 'Regały magazynowe',    agent: 'Clinex',                frequency: 'monthly', day_of_month: 1  },
-      { name: 'Mycie ścian przy stanowisk.', area: 'Ściany przy stanowiskach', agent: 'Clinex',            frequency: 'monthly', day_of_month: 15 },
-      { name: 'Mycie zamrażarki',            area: 'Zamrażarka kuchnia',   agent: 'Incidin Plus',          frequency: 'monthly', day_of_month: 1  },
+      { name: 'Mycie witryny',                area: 'Witryna',                  agent: 'Płyn do szyb',         frequency: 'weekly',  dept: 'service_hall', day_of_week: 4 },
+      { name: 'Mycie lodówek barowych',       area: 'Lodówki barowe',           agent: 'Incidin Plus',         frequency: 'weekly',  dept: 'service_hall', day_of_week: 0 },
+      // Miesięcznie — kuchnia
+      { name: 'Mycie regałów magazynowych',   area: 'Regały magazynowe',        agent: 'Clinex',               frequency: 'monthly', dept: 'kitchen_back', day_of_month: 1  },
+      { name: 'Mycie ścian przy stanowisk.',  area: 'Ściany przy stanowiskach', agent: 'Clinex',               frequency: 'monthly', dept: 'kitchen_back', day_of_month: 15 },
+      { name: 'Mycie zamrażarki',             area: 'Zamrażarka kuchnia',       agent: 'Incidin Plus',         frequency: 'monthly', dept: 'kitchen_back', day_of_month: 1  },
     ]
     const rows = defaults.map(d => ({
       location_id: locId, created_by: userId, is_active: true,
       name: d.name, area: d.area, agent: d.agent, frequency: d.frequency,
+      dept: d.dept,
       day_of_week:  'day_of_week'  in d ? d.day_of_week  : null,
       day_of_month: 'day_of_month' in d ? d.day_of_month : null,
     }))
@@ -494,6 +496,11 @@ export default function MyCiePage() {
                       {task.name}
                     </p>
                     <p className="text-xs text-gray-400 truncate">{task.area}{task.agent ? ` · ${task.agent}` : ''}</p>
+                    {task.dept && (
+                      <span className={cn('inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full mt-0.5', DEPT[task.dept].badgeCls)}>
+                        {DEPT[task.dept].badge}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className={cn(
@@ -757,6 +764,14 @@ export default function MyCiePage() {
                     value={tf.agent} onChange={e => setTf(p => ({ ...p, agent: e.target.value }))} />
                 </div>
                 <div>
+                  <label className="label">Dział</label>
+                  <select className="input" value={tf.dept} onChange={e => setTf(p => ({ ...p, dept: e.target.value as Dept | '' }))}>
+                    <option value="">Bez przypisania</option>
+                    <option value="kitchen_back">Kuchnia / Zaplecze</option>
+                    <option value="service_hall">Sala</option>
+                  </select>
+                </div>
+                <div>
                   <label className="label">Częstotliwość *</label>
                   <select className="input" value={tf.frequency} onChange={e => setTf(p => ({ ...p, frequency: e.target.value as Frequency }))}>
                     <option value="daily">Codziennie</option>
@@ -801,11 +816,18 @@ export default function MyCiePage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-900">{t.name}</p>
                     <p className="text-xs text-gray-500 mt-0.5">{t.area}{t.agent ? ` · ${t.agent}` : ''}</p>
-                    <span className="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
-                      {FREQ_LABEL[t.frequency]}
-                      {t.frequency === 'weekly'  && t.day_of_week  !== null ? ` — ${DOW_FULL[t.day_of_week]}`  : ''}
-                      {t.frequency === 'monthly' && t.day_of_month !== null ? ` — ${t.day_of_month}. dnia mies.` : ''}
-                    </span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                        {FREQ_LABEL[t.frequency]}
+                        {t.frequency === 'weekly'  && t.day_of_week  !== null ? ` — ${DOW_FULL[t.day_of_week]}`  : ''}
+                        {t.frequency === 'monthly' && t.day_of_month !== null ? ` — ${t.day_of_month}. dnia mies.` : ''}
+                      </span>
+                      {t.dept && (
+                        <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full', DEPT[t.dept].badgeCls)}>
+                          {DEPT[t.dept].badge}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   {canManage && (
                     <div className="flex gap-1 shrink-0">

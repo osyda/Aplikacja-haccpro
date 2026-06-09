@@ -15,7 +15,7 @@ async function getDashboardData(locationId: string) {
   const todayStart = getTodayStart()
   const todayEnd = getTodayEnd()
 
-  const [allTempLogsRes, deliveryLogs, cleaningLogs, nonconformities, devicesRes] = await Promise.all([
+  const [allTempLogsRes, deliveryLogs, cleaningLogs, nonconformities, devicesRes, cleaningTasksRes, completedTaskIdsRes] = await Promise.all([
     // fetch recent logs (not just today) to determine current alarm status per device
     supabase.from('temperature_logs').select('*').eq('location_id', locationId)
       .order('measured_at', { ascending: false }).limit(300),
@@ -23,6 +23,8 @@ async function getDashboardData(locationId: string) {
     supabase.from('cleaning_logs').select('id,area,agent,cleaned_at').eq('location_id', locationId).gte('cleaned_at', todayStart).lte('cleaned_at', todayEnd).order('cleaned_at', { ascending: false }),
     supabase.from('nonconformities').select('id').eq('location_id', locationId).eq('status', 'open'),
     supabase.from('location_devices').select('id,name,min_ok,max_ok').eq('location_id', locationId),
+    supabase.from('cleaning_tasks').select('id,frequency,day_of_week,day_of_month').eq('location_id', locationId).eq('is_active', true),
+    supabase.from('cleaning_logs').select('cleaning_task_id').eq('location_id', locationId).gte('cleaned_at', todayStart).not('cleaning_task_id', 'is', null),
   ])
 
   const allTempLogs = allTempLogsRes.data ?? []
@@ -58,6 +60,22 @@ async function getDashboardData(locationId: string) {
   const lastDelivery = dLogs[0] ?? null
   const lastCleaning = cLogs[0] ?? null
 
+  // Count cleaning tasks due today that haven't been completed
+  const completedTaskIds = new Set(
+    (completedTaskIdsRes.data ?? []).map((r: { cleaning_task_id: string }) => r.cleaning_task_id)
+  )
+  const now = new Date()
+  const todayDow = now.getDay() === 0 ? 6 : now.getDay() - 1
+  const todayDom = now.getDate()
+  let pendingCleaningTasks = 0
+  for (const t of (cleaningTasksRes.data ?? [])) {
+    if (completedTaskIds.has(t.id)) continue
+    const due = t.frequency === 'daily' ||
+      (t.frequency === 'weekly'  && t.day_of_week  === todayDow) ||
+      (t.frequency === 'monthly' && t.day_of_month === todayDom)
+    if (due) pendingCleaningTasks++
+  }
+
   return {
     totalDevices,
     checkedDevices,
@@ -67,6 +85,7 @@ async function getDashboardData(locationId: string) {
     lastDelivery,
     cleaningCount: cLogs.length,
     lastCleaning,
+    pendingCleaningTasks,
     openNonconformities: nonconformities.data?.length ?? 0,
     hasRegisteredDevices: (devicesRes.data ?? []).length > 0,
     hasTemperatureLog: allTempLogs.length > 0,
@@ -184,7 +203,15 @@ export default async function DashboardPage() {
         label: `Otwarte niezgodności (${data.openNonconformities})`, href: '/niezgodnosci',
       })
     }
-    if (data.cleaningCount === 0) {
+    if (data.pendingCleaningTasks > 0) {
+      priorities.push({
+        id: 'pending-cleaning', icon: Droplets, iconClass: 'text-orange-500', bgClass: 'bg-orange-50',
+        label: data.pendingCleaningTasks === 1
+          ? '1 zadanie mycia niewykonane'
+          : `Zadania mycia do wykonania (${data.pendingCleaningTasks})`,
+        href: '/mycie',
+      })
+    } else if (data.cleaningCount === 0) {
       priorities.push({
         id: 'no-cleaning', icon: Droplets, iconClass: 'text-orange-500', bgClass: 'bg-orange-50',
         label: 'Brak wpisów mycia dzisiaj', href: '/mycie',
@@ -231,9 +258,11 @@ export default async function DashboardPage() {
     },
     {
       id: 'mycie', icon: Droplets, title: 'Mycie i dezynfekcja', href: '/mycie', cta: 'Dodaj mycie',
-      badgeVariant: data.cleaningCount > 0 ? 'ok' : 'warn',
-      badgeLabel: data.cleaningCount > 0 ? 'OK' : 'Brak',
-      description: data.lastCleaning ? `Ostatnie: ${data.lastCleaning.area}` : 'Brak wpisów dzisiaj',
+      badgeVariant: data.pendingCleaningTasks > 0 ? 'warn' : data.cleaningCount > 0 ? 'ok' : 'neutral',
+      badgeLabel: data.pendingCleaningTasks > 0 ? `${data.pendingCleaningTasks} zad.` : data.cleaningCount > 0 ? 'OK' : 'Brak',
+      description: data.pendingCleaningTasks > 0
+        ? `${data.pendingCleaningTasks} zadań do wykonania dziś`
+        : data.lastCleaning ? `Ostatnie: ${data.lastCleaning.area}` : 'Brak wpisów dzisiaj',
     },
   ] : []
 
