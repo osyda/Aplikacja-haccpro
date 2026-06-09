@@ -74,7 +74,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           alertCount={openNonconformities ?? 0}
           alerts={recentAlerts ?? []}
         />
-        <main className="lg:ml-64 pt-14 pb-16 lg:pb-0 min-h-screen">
+        <main className="lg:ml-64 pt-14 pb-20 lg:pb-0 min-h-screen">
           <div className="p-4 md:p-6 max-w-5xl">
             {children}
           </div>

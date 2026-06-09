@@ -30,14 +30,14 @@ export function BottomNav({ permissions }: { permissions: AppPermissions }) {
           <Link
             key={href}
             href={href}
-            className="flex-1 flex flex-col items-center gap-1 py-3 px-1 text-[11px] font-semibold transition-colors"
+            className="flex-1 flex flex-col items-center gap-0.5 py-2 px-1 text-[10px] font-semibold transition-colors"
           >
             <span className={cn(
-              'flex items-center justify-center w-12 h-8 rounded-2xl transition-all',
+              'flex items-center justify-center w-10 h-7 rounded-2xl transition-all',
               active ? 'bg-brand-navy/10' : ''
             )}>
               <Icon
-                size={22}
+                size={19}
                 strokeWidth={active ? 2.5 : 1.75}
                 className={cn(active ? 'text-brand-navy' : 'text-gray-400')}
               />
@@ -53,14 +53,14 @@ export function BottomNav({ permissions }: { permissions: AppPermissions }) {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Otwórz menu"
-        className="flex-1 flex flex-col items-center gap-1 py-3 px-1 text-[11px] font-semibold transition-colors"
+        className="flex-1 flex flex-col items-center gap-0.5 py-2 px-1 text-[10px] font-semibold transition-colors"
       >
         <span className={cn(
-          'flex items-center justify-center w-12 h-8 rounded-2xl transition-all',
+          'flex items-center justify-center w-10 h-7 rounded-2xl transition-all',
           open ? 'bg-brand-navy/10' : ''
         )}>
           <Menu
-            size={22}
+            size={19}
             strokeWidth={open ? 2.5 : 1.75}
             className={cn(open ? 'text-brand-navy' : 'text-gray-400')}
           />
