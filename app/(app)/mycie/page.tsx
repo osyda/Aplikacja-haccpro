@@ -355,6 +355,51 @@ export default function MyCiePage() {
     fetchData()
   }
 
+  const [seedLoading, setSeedLoading] = useState(false)
+  async function handleSeedDefaults() {
+    if (!confirm('Dodać domyślne zadania mycia? Zostaną dodane do istniejących.')) return
+    setSeedLoading(true)
+    const defaults = [
+      // Codziennie — kuchnia
+      { name: 'Mycie blatów roboczych',      area: 'Blaty robocze',        agent: 'Suma Bac D10',          frequency: 'daily'   },
+      { name: 'Mycie zlewów',                area: 'Zlewy',                agent: 'Suma Bac D10',          frequency: 'daily'   },
+      { name: 'Dezynfekcja desek i noży',    area: 'Deski i noże',         agent: 'Suma Bac D10',          frequency: 'daily'   },
+      { name: 'Mycie podłogi kuchni',        area: 'Podłoga kuchnia',      agent: 'Środek do podłóg',      frequency: 'daily'   },
+      { name: 'Mycie zmywaka',               area: 'Zmywak',               agent: 'Fairy',                 frequency: 'daily'   },
+      // Codziennie — sala
+      { name: 'Mycie stolików',              area: 'Stoliki',              agent: 'Clinex',                frequency: 'daily'   },
+      { name: 'Mycie baru',                  area: 'Bar',                  agent: 'Clinex',                frequency: 'daily'   },
+      { name: 'Mycie ekspresu do kawy',      area: 'Ekspres do kawy',      agent: 'Clinex',                frequency: 'daily'   },
+      { name: 'Mycie toalet',                area: 'Toalety',              agent: 'Domestos',              frequency: 'daily'   },
+      { name: 'Mycie podłogi sali',          area: 'Podłoga sala',         agent: 'Środek do podłóg',      frequency: 'daily'   },
+      { name: 'Mycie podłogi toalet',        area: 'Podłoga toalety',      agent: 'Środek do podłóg',      frequency: 'daily'   },
+      // Tygodniowo — kuchnia
+      { name: 'Mycie chłodni',               area: 'Chłodnia',             agent: 'Incidin Plus',          frequency: 'weekly',  day_of_week: 0 },
+      { name: 'Mycie lodówki kuchennej',     area: 'Lodówka kuchnia duża', agent: 'Incidin Plus',          frequency: 'weekly',  day_of_week: 2 },
+      { name: 'Mycie piekarnika',            area: 'Piekarnik',            agent: 'Środek do piekarnika',  frequency: 'weekly',  day_of_week: 1 },
+      { name: 'Mycie okapu',                 area: 'Okap',                 agent: 'Clinex',                frequency: 'weekly',  day_of_week: 4 },
+      { name: 'Mycie pizzerki',              area: 'Pizzerka',             agent: 'Fairy',                 frequency: 'weekly',  day_of_week: 3 },
+      // Tygodniowo — sala
+      { name: 'Mycie witryny',               area: 'Witryna',              agent: 'Płyn do szyb',          frequency: 'weekly',  day_of_week: 4 },
+      { name: 'Mycie lodówek barowych',      area: 'Lodówki barowe',       agent: 'Incidin Plus',          frequency: 'weekly',  day_of_week: 0 },
+      // Miesięcznie
+      { name: 'Mycie regałów magazynowych',  area: 'Regały magazynowe',    agent: 'Clinex',                frequency: 'monthly', day_of_month: 1  },
+      { name: 'Mycie ścian przy stanowisk.', area: 'Ściany przy stanowiskach', agent: 'Clinex',            frequency: 'monthly', day_of_month: 15 },
+      { name: 'Mycie zamrażarki',            area: 'Zamrażarka kuchnia',   agent: 'Incidin Plus',          frequency: 'monthly', day_of_month: 1  },
+    ]
+    const rows = defaults.map(d => ({
+      location_id: locId, created_by: userId, is_active: true,
+      name: d.name, area: d.area, agent: d.agent, frequency: d.frequency,
+      day_of_week:  'day_of_week'  in d ? d.day_of_week  : null,
+      day_of_month: 'day_of_month' in d ? d.day_of_month : null,
+    }))
+    const { error } = await supabase.from('cleaning_tasks').insert(rows)
+    setSeedLoading(false)
+    if (error) { toast.error('Błąd: ' + error.message); return }
+    toast.success(`Dodano ${rows.length} domyślnych zadań.`)
+    fetchData()
+  }
+
   // Historia
   async function fetchHistory() {
     if (!locId) return
@@ -674,13 +719,21 @@ export default function MyCiePage() {
       {/* ─── OBSZARY ──────────────────────────────────────────────── */}
       {tab === 'obszary' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <p className="text-sm text-gray-500">{tasks.length} {tasks.length === 1 ? 'zadanie' : 'zadań'} w harmonogramie</p>
             {canManage && (
-              <button type="button" onClick={openAddTask}
-                className="flex items-center gap-1.5 px-4 py-2 bg-brand-green text-white text-sm font-semibold rounded-xl hover:bg-brand-green-dark transition-colors">
-                <Plus size={15} /> Dodaj zadanie
-              </button>
+              <div className="flex gap-2">
+                {tasks.length === 0 && (
+                  <button type="button" onClick={handleSeedDefaults} disabled={seedLoading}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50">
+                    {seedLoading ? 'Dodawanie…' : '⚡ Załaduj domyślne'}
+                  </button>
+                )}
+                <button type="button" onClick={openAddTask}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-brand-green text-white text-sm font-semibold rounded-xl hover:bg-brand-green-dark transition-colors">
+                  <Plus size={15} /> Dodaj zadanie
+                </button>
+              </div>
             )}
           </div>
 
