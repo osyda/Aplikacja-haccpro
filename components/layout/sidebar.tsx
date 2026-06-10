@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import {
   Thermometer, Truck, Droplets, GraduationCap, AlertTriangle,
-  Bug, FileText, Clock, Settings, LayoutDashboard, Apple, Stethoscope,
+  Bug, FileText, Clock, Settings, LayoutDashboard, Apple, Stethoscope, Recycle,
 } from 'lucide-react'
 import type { AppPermissions } from '@/lib/permissions'
 
@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { href: '/temperatury',   label: 'Temperatury',          icon: Thermometer,     permission: 'temperatures' },
   { href: '/dostawy',       label: 'Dostawy',              icon: Truck,           permission: 'deliveries' },
   { href: '/mycie',         label: 'Mycie i dezynfekcja',  icon: Droplets,        permission: 'cleaning' },
+  { href: '/olej',          label: 'Odbiór oleju',         icon: Recycle,         permission: 'oil_collection' },
   { href: '/niezgodnosci',  label: 'Niezgodności',         icon: AlertTriangle,   permission: 'nonconformities' },
   { href: '/szkolenia',     label: 'Szkolenia',            icon: GraduationCap,   permission: 'training' },
   { href: '/orzeczenia',    label: 'Orzeczenia',           icon: Stethoscope,     permission: 'certificates' },

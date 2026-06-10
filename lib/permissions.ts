@@ -12,6 +12,7 @@ export type PermissionKey =
   | 'settings'
   | 'temperatures_manage_devices'
   | 'cleaning_manage_areas'
+  | 'oil_collection'
 
 export type AppPermissions = Record<PermissionKey, boolean>
 
@@ -29,6 +30,7 @@ export const OWNER_PERMISSIONS: AppPermissions = {
   settings: true,
   temperatures_manage_devices: true,
   cleaning_manage_areas: true,
+  oil_collection: true,
 }
 
 export const DEFAULT_STAFF_PERMISSIONS: AppPermissions = {
@@ -45,6 +47,7 @@ export const DEFAULT_STAFF_PERMISSIONS: AppPermissions = {
   settings: false,
   temperatures_manage_devices: false,
   cleaning_manage_areas: false,
+  oil_collection: true,
 }
 
 export function resolvePermissions(

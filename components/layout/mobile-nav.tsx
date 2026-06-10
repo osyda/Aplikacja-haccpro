@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 import {
   Thermometer, Truck, Droplets, GraduationCap, AlertTriangle,
   Bug, FileText, Clock, Settings, LayoutDashboard, Apple,
-  Menu, X, LogOut, Stethoscope,
+  Menu, X, LogOut, Stethoscope, Recycle,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -19,6 +19,7 @@ const navItems = [
   { href: '/temperatury', label: 'Temperatury', icon: Thermometer },
   { href: '/dostawy', label: 'Dostawy', icon: Truck },
   { href: '/mycie', label: 'Mycie i dezynfekcja', icon: Droplets },
+  { href: '/olej', label: 'Odbiór oleju', icon: Recycle },
   { href: '/szkolenia', label: 'Szkolenia', icon: GraduationCap },
   { href: '/orzeczenia', label: 'Orzeczenia', icon: Stethoscope },
   { href: '/niezgodnosci', label: 'Niezgodności', icon: AlertTriangle },

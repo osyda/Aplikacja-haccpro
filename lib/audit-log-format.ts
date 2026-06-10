@@ -85,6 +85,15 @@ const MODULES: Record<string, ModuleConfig> = {
     },
     describe: d => joinParts([strField(d, 'area'), strField(d, 'result')]),
   },
+  oil_collections: {
+    label: 'Odbiór oleju',
+    verbs: {
+      INSERT: 'dodał(a) odbiór oleju',
+      UPDATE: 'poprawił(a) wpis odbioru oleju',
+      DELETE: 'usunął(ęła) wpis odbioru oleju',
+    },
+    describe: d => joinParts([strField(d, 'company'), strField(d, 'quantity')]),
+  },
   locations: {
     label: 'Lokal',
     verbs: {
