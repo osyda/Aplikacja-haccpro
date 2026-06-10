@@ -75,6 +75,9 @@ export default function OlejPage() {
   // Detail modal
   const [detail, setDetail] = useState<OilLog | null>(null)
 
+  // Manual entry form is collapsed by default — AI scan is the primary flow
+  const [showManualForm, setShowManualForm] = useState(false)
+
   const supabase = createClient()
 
   async function fetchData() {
@@ -161,6 +164,7 @@ export default function OlejPage() {
         setWorker(result.handed_over_by)
         setWorkerManual(!workers.includes(result.handed_over_by))
       }
+      setShowManualForm(true)
       toast.success('Dokument zeskanowany! Sprawdź i uzupełnij dane.')
     } catch (e) {
       toast.error('Błąd połączenia: ' + (e instanceof Error ? e.message : String(e)))
@@ -208,6 +212,7 @@ export default function OlejPage() {
     if (fileRef.current) fileRef.current.value = ''
     setScanFiles([])
     setScanResult(null)
+    setShowManualForm(false)
     fetchData()
   }
 
@@ -370,8 +375,20 @@ export default function OlejPage() {
       </div>
 
       {/* ── Manual entry form ── */}
+      {!showManualForm ? (
+        <button type="button" onClick={() => setShowManualForm(true)}
+          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border-2 border-dashed border-gray-200 bg-white text-sm font-medium text-gray-500 hover:border-gray-300 hover:text-gray-700 transition-colors">
+          <Plus size={15} /> Dodaj wpis ręcznie
+        </button>
+      ) : (
       <div className="card space-y-4">
-        <h2 className="font-bold text-gray-900 text-lg">Nowy wpis</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="font-bold text-gray-900 text-lg">Nowy wpis</h2>
+          <button type="button" onClick={() => setShowManualForm(false)}
+            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors">
+            <X size={16} />
+          </button>
+        </div>
 
         <div>
           <label className="label">Firma odbierająca <span className="text-red-500">*</span></label>
@@ -487,6 +504,7 @@ export default function OlejPage() {
           {saving ? 'Zapisywanie…' : 'Zapisz wpis'}
         </button>
       </div>
+      )}
 
       {/* ── History ── */}
       <div className="space-y-3">
