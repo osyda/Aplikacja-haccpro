@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Dialog } from '@/components/ui/dialog'
 import {
   WASTE_DAYS, WASTE_FREQUENCY_LABELS, describeWasteSchedule, scheduledItemsForDate,
+  groupByWasteType, summarizeScheduleGroup,
 } from '@/lib/waste-schedule'
 import type { WasteFrequency, WasteScheduleItem } from '@/lib/waste-schedule'
 import type { WasteContractScanResult } from '@/app/api/scan-waste-contract/route'
@@ -325,6 +326,17 @@ export default function OdpadyPage() {
     setScheduleItems(prev => prev.filter(i => i.id !== id))
   }
 
+  // ── Schedule: delete a whole waste-type group at once ──
+  async function handleDeleteGroup(ids: string[]) {
+    if (ids.length === 1) return handleDeleteItem(ids[0])
+    setDeletingId(ids[0])
+    const { error } = await supabase.from('waste_schedule_items').delete().in('id', ids)
+    setDeletingId(null)
+    if (error) { toast.error('Błąd usuwania: ' + error.message); return }
+    setScheduleItems(prev => prev.filter(i => !ids.includes(i.id)))
+    toast.success('Usunięto pozycje harmonogramu.')
+  }
+
   // ── Upcoming pickups (next 7 days) ──
   const upcoming = useMemo(() => {
     const days: { dateStr: string; label: string; items: WasteScheduleItem[] }[] = []
@@ -582,18 +594,51 @@ export default function OdpadyPage() {
                 )}
               </div>
               <div className="space-y-1.5">
-                {reviewItems.map((it, i) => (
-                  <div key={i} className="flex items-center gap-2 px-3 py-2.5 bg-white rounded-lg border border-purple-100 text-sm">
-                    <CalendarClock size={14} className="text-purple-400 shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-gray-800 truncate">{it.waste_type}</p>
-                      <p className="text-xs text-gray-500">{describeWasteSchedule(it)}</p>
+                {groupByWasteType(reviewItems).map(group => {
+                  const onceItems = group.items.filter(it => it.frequency === 'once' && it.specific_date)
+                  const otherItems = group.items.filter(it => !(it.frequency === 'once' && it.specific_date))
+                  return (
+                    <div key={group.waste_type} className="px-3 py-2.5 bg-white rounded-lg border border-purple-100 text-sm space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <CalendarClock size={14} className="text-purple-400 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-gray-800 truncate">{group.waste_type}</p>
+                          <p className="text-xs text-gray-500">{summarizeScheduleGroup(group.items)}</p>
+                        </div>
+                        <button type="button" onClick={() => setReviewItems(prev => prev.filter(it => it.waste_type !== group.waste_type))}>
+                          <X size={14} className="text-gray-400 hover:text-gray-600" />
+                        </button>
+                      </div>
+                      {otherItems.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 pl-6">
+                          {otherItems.map((it, idx) => (
+                            <span key={idx} className="px-2 py-0.5 rounded-full bg-gray-100 text-[11px] text-gray-600 flex items-center gap-1">
+                              {describeWasteSchedule(it)}
+                              <button type="button" onClick={() => setReviewItems(prev => prev.filter(x => x !== it))}>
+                                <X size={10} />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {onceItems.length > 1 && (
+                        <details className="pl-6">
+                          <summary className="text-xs text-purple-600 cursor-pointer">Pokaż wszystkie daty ({onceItems.length})</summary>
+                          <div className="flex flex-wrap gap-1.5 mt-1.5">
+                            {onceItems.map((it, idx) => (
+                              <span key={idx} className="px-2 py-0.5 rounded-full bg-gray-100 text-[11px] text-gray-600 flex items-center gap-1">
+                                {formatDate(it.specific_date as string)}
+                                <button type="button" onClick={() => setReviewItems(prev => prev.filter(x => x !== it))}>
+                                  <X size={10} />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        </details>
+                      )}
                     </div>
-                    <button type="button" onClick={() => setReviewItems(prev => prev.filter((_, j) => j !== i))}>
-                      <X size={14} className="text-gray-400 hover:text-gray-600" />
-                    </button>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
               <button type="button" onClick={handleSaveReviewItems} disabled={savingReview}
                 className={cn('w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-colors',
@@ -754,21 +799,55 @@ export default function OdpadyPage() {
         {/* Schedule list */}
         {scheduleItems.length > 0 ? (
           <div className="space-y-2">
-            {scheduleItems.map(item => (
-              <div key={item.id} className="w-full flex items-center gap-3 rounded-xl border border-gray-100 bg-white px-4 py-3">
-                <div className="p-1.5 rounded-lg bg-brand-green/10 shrink-0">
-                  <CalendarClock size={14} className="text-brand-green-dark" />
+            {groupByWasteType(scheduleItems).map(group => {
+              const onceItems = group.items.filter(i => i.frequency === 'once')
+              const recurringItems = group.items.filter(i => i.frequency !== 'once')
+              const ids = group.items.map(i => i.id)
+              return (
+                <div key={group.waste_type} className="w-full rounded-xl border border-gray-100 bg-white px-4 py-3 space-y-1.5">
+                  <div className="flex items-center gap-3">
+                    <div className="p-1.5 rounded-lg bg-brand-green/10 shrink-0">
+                      <CalendarClock size={14} className="text-brand-green-dark" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-gray-900 text-sm truncate">{group.waste_type}</p>
+                      <p className="text-xs text-gray-500 mt-0.5 truncate">{summarizeScheduleGroup(group.items)}</p>
+                    </div>
+                    <button type="button" onClick={() => handleDeleteGroup(ids)} disabled={deletingId !== null}
+                      className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors shrink-0 disabled:opacity-50">
+                      <X size={15} />
+                    </button>
+                  </div>
+                  {recurringItems.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pl-9">
+                      {recurringItems.map(item => (
+                        <span key={item.id} className="px-2 py-0.5 rounded-full bg-gray-100 text-[11px] text-gray-600 flex items-center gap-1">
+                          {describeWasteSchedule(item)}
+                          <button type="button" onClick={() => handleDeleteItem(item.id)} disabled={deletingId !== null}>
+                            <X size={10} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {onceItems.length > 1 && (
+                    <details className="pl-9">
+                      <summary className="text-xs text-brand-navy cursor-pointer">Pokaż wszystkie terminy ({onceItems.length})</summary>
+                      <div className="flex flex-wrap gap-1.5 mt-1.5">
+                        {onceItems.map(item => (
+                          <span key={item.id} className="px-2 py-0.5 rounded-full bg-gray-100 text-[11px] text-gray-600 flex items-center gap-1">
+                            {item.specific_date ? formatDate(item.specific_date) : ''}
+                            <button type="button" onClick={() => handleDeleteItem(item.id)} disabled={deletingId !== null}>
+                              <X size={10} />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </details>
+                  )}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-gray-900 text-sm truncate">{item.waste_type}</p>
-                  <p className="text-xs text-gray-500 mt-0.5 truncate">{describeWasteSchedule(item)}</p>
-                </div>
-                <button type="button" onClick={() => handleDeleteItem(item.id)} disabled={deletingId === item.id}
-                  className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors shrink-0 disabled:opacity-50">
-                  <X size={15} />
-                </button>
-              </div>
-            ))}
+              )
+            })}
           </div>
         ) : (
           <EmptyState

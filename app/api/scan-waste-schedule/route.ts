@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 
+export const maxDuration = 60
+
 export interface WasteScheduleScanItem {
   waste_type: string
   frequency: 'weekly' | 'biweekly' | 'monthly' | 'once'
@@ -16,16 +18,8 @@ export interface WasteScheduleScanResult {
   confidence: 'wysoka' | 'srednia' | 'niska'
 }
 
-const PROMPT = `Przeanalizuj ten harmonogram odbioru odpadów (może się składać z kilku stron / zdjęć tego samego dokumentu) i wyciągnij listę regularnych odbiorów odpadów.
+const PROMPT = `Przeanalizuj ten harmonogram odbioru odpadów (może się składać z kilku stron / zdjęć tego samego dokumentu) i wyciągnij listę odbiorów odpadów.
 Zwróć TYLKO poprawny JSON bez żadnego tekstu wokół niego, bez markdown, bez \`\`\`json.
-
-Dla każdego rodzaju odpadu (np. zmieszane, papier, szkło, plastik i metale, BIO/odpady kuchenne, inne) zwróć osobny wpis z częstotliwością odbioru:
-- "weekly" — odbiór co tydzień w określony dzień tygodnia (uzupełnij "day_of_week")
-- "biweekly" — odbiór co dwa tygodnie w określony dzień tygodnia (uzupełnij "day_of_week" i jeśli to możliwe "anchor_date" — przykładową datę jednego z odbiorów, na podstawie której można wyznaczyć cykl)
-- "monthly" — odbiór raz w miesiącu w określony dzień miesiąca (uzupełnij "day_of_month")
-- "once" — pojedynczy, jednorazowy odbiór w konkretnym dniu (uzupełnij "specific_date")
-
-"day_of_week": 0=poniedziałek, 1=wtorek, 2=środa, 3=czwartek, 4=piątek, 5=sobota, 6=niedziela.
 
 Format odpowiedzi:
 {
@@ -42,8 +36,23 @@ Format odpowiedzi:
   "confidence": "wysoka lub srednia lub niska"
 }
 
-WAŻNE — harmonogramy roczne (kalendarze z konkretnymi datami na cały rok):
-Jeśli dokument pokazuje konkretne daty odbioru dla całego roku, NIE twórz osobnego wpisu "once" dla każdej pojedynczej daty z kalendarza — to wygenerowałoby setki wpisów. Zamiast tego rozpoznaj powtarzający się wzorzec (np. "zawsze w poniedziałki" → "weekly" z odpowiednim "day_of_week", "co drugi wtorek" → "biweekly" z "anchor_date" ustawionym na jedną z dat). Jeśli dany rodzaj odpadu jest odbierany kilka razy w tygodniu (np. w poniedziałki i czwartki), zwróć dla niego osobny wpis "weekly" dla każdego dnia tygodnia. Wpis "once" zostaw tylko dla naprawdę pojedynczych, nieregularnych odbiorów (np. jednorazowy odbiór gabarytów w konkretnym dniu), a nie dla regularnego harmonogramu.
+"day_of_week": 0=poniedziałek, 1=wtorek, 2=środa, 3=czwartek, 4=piątek, 5=sobota, 6=niedziela.
+
+Harmonogramy bywają w dwóch układach — rozpoznaj który to przypadek:
+
+1) PROSTY WZORZEC (tekstowy opis, np. "odpady zmieszane odbierane są w każdy poniedziałek i czwartek", bez kalendarza):
+Dla każdego rodzaju odpadu (np. zmieszane, papier, szkło, plastik i metale, BIO/odpady kuchenne, inne) zwróć osobny wpis:
+- "weekly" — odbiór co tydzień w określony dzień tygodnia (uzupełnij "day_of_week"). Jeśli dany rodzaj odpadu jest odbierany kilka razy w tygodniu (np. w poniedziałki i czwartki), zwróć osobny wpis "weekly" dla każdego dnia tygodnia.
+- "biweekly" — odbiór co dwa tygodnie w określony dzień tygodnia (uzupełnij "day_of_week" i jeśli to możliwe "anchor_date" — przykładową datę jednego z odbiorów)
+- "monthly" — odbiór raz w miesiącu w określony dzień miesiąca (uzupełnij "day_of_month")
+- "once" — pojedynczy, jednorazowy odbiór w konkretnym dniu (uzupełnij "specific_date")
+
+2) KALENDARZ ROCZNY (typowy harmonogram firmy wywozowej — 12 mini-kalendarzy, jeden na każdy miesiąc roku, z konkretnymi dniami oznaczonymi/podświetlonymi kolorami i LEGENDĄ na dole strony przypisującą każdy kolor do rodzaju odpadu):
+- Odczytaj rok z tytułu dokumentu (np. "W 2026 ROKU" → rok 2026).
+- Odczytaj legendę kolorów na dole — ustal, jaki rodzaj odpadu odpowiada każdemu kolorowi/oznaczeniu.
+- Przejrzyj WSZYSTKIE 12 miesięcy, jeden po drugim — nie pomijaj żadnego.
+- Dla KAŻDEGO oznaczonego/podświetlonego dnia w każdym miesiącu utwórz OSOBNY wpis z "frequency": "once", "specific_date" w formacie YYYY-MM-DD (rok z tytułu, miesiąc i dzień z kalendarza) oraz "waste_type" odpowiadającym kolorowi tego dnia wg legendy. To normalne, że dla takiego harmonogramu wynikiem będzie kilkadziesiąt wpisów "once" — to oczekiwane, podaj je wszystkie.
+- Dni bez żadnego oznaczenia/koloru pomiń (brak odbioru w tym dniu).
 
 Jeśli dostałeś kilka stron/zdjęć, potraktuj je jako jeden dokument i połącz informacje z wszystkich. Jeśli nie uda się rozpoznać żadnego harmonogramu, zwróć pustą listę "items".`
 
@@ -85,7 +94,7 @@ export async function POST(req: NextRequest) {
 
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 8192,
+      max_tokens: 16000,
       messages: [
         {
           role: 'user',
