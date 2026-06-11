@@ -5,14 +5,16 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
-  Stethoscope, Plus, ChevronDown, ChevronUp, AlertTriangle,
-  Paperclip, X, Search, Sparkles, Loader2, CheckCircle2, Trash2,
+  Stethoscope, AlertTriangle, Paperclip, X, Search, Trash2,
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
+import { SectionHeader } from '@/components/ui/section-header'
+import { AiScanRow } from '@/components/ui/ai-scan-row'
+import { Dialog } from '@/components/ui/dialog'
 import type { CertScanResult } from '@/app/api/scan-certificate/route'
 
 interface MedRecord {
@@ -39,16 +41,19 @@ function StatusBadge({ validUntil }: { validUntil: string }) {
 export default function OrzeczenicaPage() {
   const [records, setRecords] = useState<MedRecord[]>([])
   const [canDelete, setCanDelete] = useState(false)
-  const [expanded, setExpanded] = useState(false)
   const [form, setForm] = useState({ person_name: '', pesel: '', valid_until: '', notes: '' })
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
 
+  // AI scan
+  const [scanFiles, setScanFiles] = useState<File[]>([])
   const [scanning, setScanning] = useState(false)
-  const [scanDone, setScanDone] = useState(false)
+  const [scanResult, setScanResult] = useState<CertScanResult | null>(null)
+
+  // "+ Nowy wpis" modal (AI scan + manual form)
+  const [showModal, setShowModal] = useState(false)
 
   const fileRef = useRef<HTMLInputElement>(null)
-  const scanRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
 
   async function getCtx() {
@@ -74,40 +79,30 @@ export default function OrzeczenicaPage() {
 
   useEffect(() => { fetchRecords() }, [])
 
-  async function handleScan(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0]
-    if (!f) return
+  async function handleScan(toScan: File[]) {
     setScanning(true)
-    setScanDone(false)
-
-    // Pre-fill file attachment so it's not uploaded twice
-    setFile(f)
-
+    setScanResult(null)
+    setFile(toScan[0] ?? null) // pre-fill attachment so it's not uploaded twice
     try {
       const fd = new FormData()
-      fd.append('file', f)
+      toScan.forEach((f) => fd.append('files', f))
       const res = await fetch('/api/scan-certificate', { method: 'POST', body: fd })
-      if (!res.ok) {
-        const err = await res.json()
-        toast.error(err.error ?? 'Błąd skanowania')
-        return
-      }
-      const result: CertScanResult = await res.json()
-      setForm(prev => ({
+      const json = await res.json()
+      if (!res.ok) { toast.error(json.error ?? 'Błąd skanowania'); return }
+      const result = json as CertScanResult
+      setScanResult(result)
+      setForm((prev) => ({
         ...prev,
         person_name: result.person_name ?? prev.person_name,
         pesel: result.pesel ?? prev.pesel,
         valid_until: result.valid_until ?? prev.valid_until,
       }))
-      setScanDone(true)
-      setExpanded(true)
-      const badge = result.confidence === 'wysoka' ? 'Wysoka pewność' : result.confidence === 'srednia' ? 'Średnia pewność' : 'Niska pewność — sprawdź dane'
-      toast.success(`AI: dane wyciągnięte (${badge})`)
-    } catch {
-      toast.error('Błąd połączenia z AI')
+      setShowModal(true)
+      toast.success('Dokument zeskanowany! Sprawdź i uzupełnij dane.')
+    } catch (e) {
+      toast.error('Błąd połączenia: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
       setScanning(false)
-      if (scanRef.current) scanRef.current.value = ''
     }
   }
 
@@ -144,9 +139,10 @@ export default function OrzeczenicaPage() {
     toast.success('Orzeczenie dodane!')
     setForm({ person_name: '', pesel: '', valid_until: '', notes: '' })
     setFile(null)
-    setScanDone(false)
     if (fileRef.current) fileRef.current.value = ''
-    setExpanded(false)
+    setScanFiles([])
+    setScanResult(null)
+    setShowModal(false)
     fetchRecords()
   }
 
@@ -172,151 +168,12 @@ export default function OrzeczenicaPage() {
         </div>
       )}
 
-      {/* AI scan panel */}
-      <div className={cn(
-        'card border-2 transition-colors',
-        scanDone ? 'border-green-300 bg-green-50' : 'border-purple-100 bg-purple-50/40'
-      )}>
-        <div className="flex items-center gap-3 mb-3">
-          <div className="p-2 rounded-xl bg-purple-100">
-            <Sparkles size={18} className="text-purple-600" />
-          </div>
-          <div>
-            <p className="font-semibold text-sm text-gray-900">Skanuj orzeczenie z AI</p>
-            <p className="text-xs text-gray-500">Wgraj zdjęcie lub skan — AI wyciągnie dane automatycznie</p>
-          </div>
-          {scanDone && (
-            <span className="ml-auto flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-100 px-2 py-1 rounded-full">
-              <CheckCircle2 size={12} />
-              Dane wyciągnięte
-            </span>
-          )}
-        </div>
-
-        <label className={cn(
-          'flex items-center justify-center gap-3 w-full py-4 rounded-xl border-2 border-dashed cursor-pointer transition-all',
-          scanning
-            ? 'border-purple-300 bg-purple-50 cursor-wait'
-            : 'border-purple-200 hover:border-purple-400 hover:bg-purple-50 active:scale-[0.99]'
-        )}>
-          {scanning
-            ? <Loader2 size={20} className="text-purple-500 animate-spin" />
-            : <Sparkles size={20} className="text-purple-400" />
-          }
-          <span className={cn('text-sm font-medium', scanning ? 'text-purple-600' : 'text-purple-700')}>
-            {scanning ? 'Analizuję orzeczenie…' : 'Zrób zdjęcie lub wybierz plik (JPG, PNG, PDF)'}
-          </span>
-          <input
-            ref={scanRef}
-            type="file"
-            accept="image/*,.pdf"
-            className="hidden"
-            disabled={scanning}
-            onChange={handleScan}
-          />
-        </label>
-
-        {file && !scanning && (
-          <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-gray-200 text-xs text-gray-600">
-            <Paperclip size={12} className="text-purple-500" />
-            <span className="flex-1 truncate">{file.name}</span>
-            <button type="button" onClick={() => { setFile(null); setScanDone(false) }}>
-              <X size={13} className="text-gray-400 hover:text-gray-600" />
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Form */}
-      <div className="card">
-        <button type="button" onClick={() => setExpanded(!expanded)} className="w-full flex items-center justify-between text-left">
-          <div className="flex items-center gap-2">
-            <div className="bg-purple-500 p-1.5 rounded-lg"><Plus size={14} className="text-white" /></div>
-            <span className="font-semibold text-gray-900">
-              {scanDone ? 'Sprawdź dane i zapisz' : 'Dodaj orzeczenie ręcznie'}
-            </span>
-          </div>
-          {expanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
-        </button>
-
-        {expanded && (
-          <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-            {scanDone && (
-              <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-xl text-xs text-green-700">
-                <Sparkles size={13} />
-                Dane wypełnione przez AI — sprawdź i popraw jeśli trzeba
-              </div>
-            )}
-
-            <Input
-              label="Imię i nazwisko pracownika"
-              placeholder="Jan Kowalski"
-              value={form.person_name}
-              onChange={(e) => setForm((p) => ({ ...p, person_name: e.target.value }))}
-              required
-            />
-
-            <Input
-              label="PESEL"
-              placeholder="00000000000"
-              value={form.pesel}
-              onChange={(e) => setForm((p) => ({ ...p, pesel: e.target.value.replace(/\D/g, '').slice(0, 11) }))}
-            />
-
-            <div>
-              <label className="label">Ważne do</label>
-              <input
-                type="date"
-                className="input"
-                value={form.valid_until}
-                onChange={(e) => setForm((p) => ({ ...p, valid_until: e.target.value }))}
-                required
-              />
-            </div>
-
-            <Input
-              label="Uwagi (opcjonalnie)"
-              placeholder="Dodatkowe informacje"
-              value={form.notes}
-              onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
-            />
-
-            <div>
-              <label className="label">
-                Skan orzeczenia (opcjonalnie)
-                {file && <span className="text-green-600 font-normal ml-1">— plik z AI gotowy</span>}
-              </label>
-              <div className="flex items-center gap-2">
-                <label className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 cursor-pointer hover:border-gray-300 transition-colors flex-1">
-                  <Paperclip size={14} />
-                  {file ? file.name : 'Wybierz plik (JPG, PNG, PDF)'}
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept="image/*,.pdf"
-                    className="hidden"
-                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                  />
-                </label>
-                {file && (
-                  <button type="button" onClick={() => { setFile(null); if (fileRef.current) fileRef.current.value = '' }}>
-                    <X size={16} className="text-gray-400 hover:text-gray-600" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <Button type="submit" loading={loading}>Zapisz orzeczenie</Button>
-          </form>
-        )}
-      </div>
-
-      {/* Records list */}
-      {records.length > 0 ? (
-        <div className="card">
-          <h2 className="font-semibold text-gray-900 mb-3">Rejestr ({records.length})</h2>
-          <div className="divide-y divide-gray-50">
-            {records.map((r) => (
+      <div className="space-y-3">
+        <SectionHeader title="Rejestr orzeczeń" actionLabel="Nowy wpis" onAction={() => setShowModal(true)} />
+        {records.length > 0 ? (
+          <div className="card">
+            <div className="divide-y divide-gray-50">
+              {records.map((r) => (
                 <div key={r.id} className="py-3 flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-0.5">
@@ -357,12 +214,108 @@ export default function OrzeczenicaPage() {
                     )}
                   </div>
                 </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      ) : (
-        <EmptyState icon={Stethoscope} title="Brak orzeczeń. Dodaj pierwsze orzeczenie powyżej." />
-      )}
+        ) : (
+          <EmptyState icon={Stethoscope} title="Brak orzeczeń" description="Dodaj pierwsze orzeczenie, aby zacząć budować rejestr." />
+        )}
+      </div>
+
+      {/* New entry modal */}
+      <Dialog open={showModal} onClose={() => setShowModal(false)} title="Nowe orzeczenie" size="md">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <AiScanRow
+            label="Skanuj orzeczenie AI"
+            files={scanFiles}
+            onFilesChange={setScanFiles}
+            onScan={() => handleScan(scanFiles)}
+            scanning={scanning}
+            hasResult={!!scanResult}
+            onReset={() => { setScanResult(null); setScanFiles([]) }}
+          >
+            {scanResult && (
+              <div className="space-y-1.5">
+                <div className="grid grid-cols-2 gap-1.5 text-xs">
+                  {scanResult.person_name && <div className="bg-white rounded-lg px-3 py-2 border border-purple-100 col-span-2"><span className="text-gray-400">Pracownik: </span><span className="font-medium text-gray-800">{scanResult.person_name}</span></div>}
+                  {scanResult.pesel && <div className="bg-white rounded-lg px-3 py-2 border border-purple-100"><span className="text-gray-400">PESEL: </span><span className="font-medium text-gray-800">{scanResult.pesel}</span></div>}
+                  {scanResult.valid_until && <div className="bg-white rounded-lg px-3 py-2 border border-purple-100"><span className="text-gray-400">Ważne do: </span><span className="font-medium text-gray-800">{scanResult.valid_until}</span></div>}
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-semibold',
+                    scanResult.confidence === 'wysoka' ? 'bg-green-100 text-green-700'
+                    : scanResult.confidence === 'srednia' ? 'bg-yellow-100 text-yellow-700'
+                    : 'bg-red-100 text-red-700'
+                  )}>
+                    Pewność: {scanResult.confidence}
+                  </span>
+                  <span className="text-[11px] text-purple-600">Sprawdź dane poniżej i popraw jeśli trzeba.</span>
+                </div>
+              </div>
+            )}
+          </AiScanRow>
+
+          <Input
+            label="Imię i nazwisko pracownika"
+            placeholder="Jan Kowalski"
+            value={form.person_name}
+            onChange={(e) => setForm((p) => ({ ...p, person_name: e.target.value }))}
+            required
+          />
+
+          <Input
+            label="PESEL"
+            placeholder="00000000000"
+            value={form.pesel}
+            onChange={(e) => setForm((p) => ({ ...p, pesel: e.target.value.replace(/\D/g, '').slice(0, 11) }))}
+          />
+
+          <div>
+            <label className="label">Ważne do</label>
+            <input
+              type="date"
+              className="input"
+              value={form.valid_until}
+              onChange={(e) => setForm((p) => ({ ...p, valid_until: e.target.value }))}
+              required
+            />
+          </div>
+
+          <Input
+            label="Uwagi (opcjonalnie)"
+            placeholder="Dodatkowe informacje"
+            value={form.notes}
+            onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
+          />
+
+          <div>
+            <label className="label">
+              Skan orzeczenia (opcjonalnie)
+              {file && <span className="text-green-600 font-normal ml-1">— plik gotowy</span>}
+            </label>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 cursor-pointer hover:border-gray-300 transition-colors flex-1">
+                <Paperclip size={14} />
+                {file ? file.name : 'Wybierz plik (JPG, PNG, PDF)'}
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*,.pdf"
+                  className="hidden"
+                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                />
+              </label>
+              {file && (
+                <button type="button" onClick={() => { setFile(null); if (fileRef.current) fileRef.current.value = '' }}>
+                  <X size={16} className="text-gray-400 hover:text-gray-600" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <Button type="submit" loading={loading}>Zapisz orzeczenie</Button>
+        </form>
+      </Dialog>
     </div>
   )
 }

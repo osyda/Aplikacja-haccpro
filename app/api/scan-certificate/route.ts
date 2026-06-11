@@ -9,7 +9,7 @@ export interface CertScanResult {
   confidence: 'wysoka' | 'srednia' | 'niska'
 }
 
-const PROMPT = `Przeanalizuj to orzeczenie lekarskie do celów sanitarno-epidemiologicznych i wyciągnij dane pracownika.
+const PROMPT = `Przeanalizuj to orzeczenie lekarskie do celów sanitarno-epidemiologicznych (może się składać z kilku stron / zdjęć tego samego dokumentu) i wyciągnij dane pracownika.
 Zwróć TYLKO poprawny JSON bez żadnego tekstu wokół niego, bez markdown, bez \`\`\`json.
 
 Format odpowiedzi:
@@ -30,30 +30,37 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const formData = await req.formData()
-    const file = formData.get('file') as File | null
-    if (!file) return NextResponse.json({ error: 'Brak pliku' }, { status: 400 })
+    const files = formData.getAll('files').filter((f): f is File => f instanceof File)
+    if (files.length === 0) {
+      const single = formData.get('file')
+      if (single instanceof File) files.push(single)
+    }
+    if (files.length === 0) return NextResponse.json({ error: 'Brak pliku' }, { status: 400 })
 
     const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'application/pdf']
-    if (!allowed.includes(file.type)) {
-      return NextResponse.json({ error: 'Obsługiwane formaty: JPG, PNG, WebP, PDF.' }, { status: 400 })
+    for (const file of files) {
+      if (!allowed.includes(file.type)) {
+        return NextResponse.json({ error: 'Obsługiwane formaty: JPG, PNG, WebP, PDF.' }, { status: 400 })
+      }
     }
 
     if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json({ error: 'Brak klucza ANTHROPIC_API_KEY w konfiguracji serwera.' }, { status: 500 })
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer())
-    const base64 = buffer.toString('base64')
-
-    const fileBlock = file.type === 'application/pdf'
-      ? { type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: base64 } }
-      : { type: 'image' as const, source: { type: 'base64' as const, media_type: file.type as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp', data: base64 } }
+    const fileBlocks = await Promise.all(files.map(async (file) => {
+      const buffer = Buffer.from(await file.arrayBuffer())
+      const base64 = buffer.toString('base64')
+      return file.type === 'application/pdf'
+        ? { type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: base64 } }
+        : { type: 'image' as const, source: { type: 'base64' as const, media_type: file.type as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp', data: base64 } }
+    }))
 
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 512,
-      messages: [{ role: 'user', content: [fileBlock, { type: 'text', text: PROMPT }] }],
+      messages: [{ role: 'user', content: [...fileBlocks, { type: 'text', text: PROMPT }] }],
     })
 
     const text = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
