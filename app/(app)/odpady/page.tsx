@@ -6,6 +6,8 @@ import { toast } from 'sonner'
 import { cn, formatDate, formatDateTime } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
+import { SectionHeader } from '@/components/ui/section-header'
+import { AiScanRow } from '@/components/ui/ai-scan-row'
 import { Dialog } from '@/components/ui/dialog'
 import {
   WASTE_DAYS, WASTE_FREQUENCY_LABELS, describeWasteSchedule, scheduledItemsForDate,
@@ -15,8 +17,8 @@ import type { WasteFrequency, WasteScheduleItem } from '@/lib/waste-schedule'
 import type { WasteContractScanResult } from '@/app/api/scan-waste-contract/route'
 import type { WasteScheduleScanItem, WasteScheduleScanResult } from '@/app/api/scan-waste-schedule/route'
 import {
-  Trash2, FileText, Plus, Sparkles, Camera, Paperclip, X, RotateCcw,
-  CheckCircle2, ExternalLink, Search, ChevronRight, CalendarClock, Save,
+  Trash2, FileText, Paperclip, X,
+  ExternalLink, Search, ChevronRight, CalendarClock, Save,
 } from 'lucide-react'
 
 interface WasteContractRow {
@@ -99,14 +101,12 @@ export default function OdpadyPage() {
   const [contractFiles, setContractFiles] = useState<File[]>([])
   const contractFileRef = useRef<HTMLInputElement>(null)
   const [savingContract, setSavingContract] = useState(false)
-  const [showContractForm, setShowContractForm] = useState(false)
+  const [showContractModal, setShowContractModal] = useState(false)
   const [contractDetail, setContractDetail] = useState<WasteContractRow | null>(null)
 
   const [contractScanFiles, setContractScanFiles] = useState<File[]>([])
   const [contractScanning, setContractScanning] = useState(false)
   const [contractScanResult, setContractScanResult] = useState<WasteContractScanResult | null>(null)
-  const contractScanRef = useRef<HTMLInputElement>(null)
-  const contractAddScanRef = useRef<HTMLInputElement>(null)
 
   // ── Schedule state ──
   const [scheduleItems, setScheduleItems] = useState<WasteScheduleItem[]>([])
@@ -117,10 +117,8 @@ export default function OdpadyPage() {
   const [scheduleScanFiles, setScheduleScanFiles] = useState<File[]>([])
   const [scheduleScanning, setScheduleScanning] = useState(false)
   const [scheduleScanResult, setScheduleScanResult] = useState<WasteScheduleScanResult | null>(null)
-  const scheduleScanRef = useRef<HTMLInputElement>(null)
-  const scheduleAddScanRef = useRef<HTMLInputElement>(null)
 
-  const [showItemForm, setShowItemForm] = useState(false)
+  const [showItemModal, setShowItemModal] = useState(false)
   const [itemForm, setItemForm] = useState(emptyItemForm)
   const [savingItem, setSavingItem] = useState(false)
 
@@ -172,7 +170,7 @@ export default function OdpadyPage() {
         signed_at: result.signed_at ?? p.signed_at,
         notes: result.notes ?? p.notes,
       }))
-      setShowContractForm(true)
+      setShowContractModal(true)
       toast.success('Umowa zeskanowana! Sprawdź i uzupełnij dane.')
     } catch (e) {
       toast.error('Błąd połączenia: ' + (e instanceof Error ? e.message : String(e)))
@@ -214,7 +212,7 @@ export default function OdpadyPage() {
     if (contractFileRef.current) contractFileRef.current.value = ''
     setContractScanFiles([])
     setContractScanResult(null)
-    setShowContractForm(false)
+    setShowContractModal(false)
     fetchData()
   }
 
@@ -266,6 +264,7 @@ export default function OdpadyPage() {
     setReviewItems([])
     setScheduleScanResult(null)
     setScheduleScanFiles([])
+    setShowItemModal(false)
     fetchData()
   }
 
@@ -313,7 +312,7 @@ export default function OdpadyPage() {
     if (error) { toast.error('Błąd zapisu: ' + error.message); return }
     toast.success(rows.length > 1 ? 'Pozycje harmonogramu dodane!' : 'Pozycja harmonogramu dodana!')
     setItemForm(emptyItemForm())
-    setShowItemForm(false)
+    setShowItemModal(false)
     fetchData()
   }
 
@@ -361,115 +360,54 @@ export default function OdpadyPage() {
 
       {/* ════════════════ Umowa na odbiór odpadów ════════════════ */}
       <div className="space-y-3">
-        <h2 className="font-bold text-gray-900 text-lg">Umowa na odbiór odpadów</h2>
+        <SectionHeader title="Umowa na odbiór odpadów" actionLabel="Nowa umowa" onAction={() => setShowContractModal(true)} />
 
-        {/* AI scan panel */}
-        <div className={cn(
-          'rounded-2xl border-2 p-4 transition-all',
-          contractScanResult ? 'border-purple-200 bg-purple-50' : 'border-dashed border-gray-200 bg-white'
-        )}>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-purple-100 rounded-lg">
-                <Sparkles size={15} className="text-purple-600" />
-              </div>
-              <span className="text-sm font-bold text-gray-800">Skanuj umowę AI</span>
-              <span className="text-xs text-gray-400 font-normal">opcjonalnie</span>
-            </div>
-            {contractScanResult && (
-              <button type="button" onClick={() => { setContractScanResult(null); setContractScanFiles([]) }}
-                className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
-                <RotateCcw size={12} /> Skanuj ponownie
-              </button>
-            )}
+        {contracts.length > 0 ? (
+          <div className="space-y-2">
+            {contracts.map(row => (
+              <ContractCard key={row.id} row={row} onOpen={() => setContractDetail(row)} />
+            ))}
           </div>
-
-          <input ref={contractScanRef} type="file" accept="image/*,.pdf" multiple className="hidden"
-            onChange={e => {
-              const picked = Array.from(e.target.files ?? [])
-              if (picked.length) setContractScanFiles(prev => [...prev, ...picked])
-              if (contractScanRef.current) contractScanRef.current.value = ''
-            }} />
-          <input ref={contractAddScanRef} type="file" accept="image/*,.pdf" multiple className="hidden"
-            onChange={e => {
-              const picked = Array.from(e.target.files ?? [])
-              if (picked.length) setContractScanFiles(prev => [...prev, ...picked])
-              if (contractAddScanRef.current) contractAddScanRef.current.value = ''
-            }} />
-
-          {contractScanResult ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-xs text-purple-700 font-semibold mb-1">
-                <CheckCircle2 size={13} />
-                Formularz wypełniony automatycznie
-                <span className={cn('ml-auto px-2 py-0.5 rounded-full text-[10px]',
-                  contractScanResult.confidence === 'wysoka' ? 'bg-green-100 text-green-700'
-                  : contractScanResult.confidence === 'srednia' ? 'bg-yellow-100 text-yellow-700'
-                  : 'bg-red-100 text-red-700'
-                )}>
-                  Pewność: {contractScanResult.confidence}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-1.5 text-xs">
-                {contractScanResult.company && <div className="bg-white rounded-lg px-3 py-2 border border-purple-100"><span className="text-gray-400">Firma: </span><span className="font-medium text-gray-800">{contractScanResult.company}</span></div>}
-                {contractScanResult.signed_at && <div className="bg-white rounded-lg px-3 py-2 border border-purple-100"><span className="text-gray-400">Data zawarcia: </span><span className="font-medium text-gray-800">{contractScanResult.signed_at}</span></div>}
-              </div>
-              <p className="text-xs text-purple-600 mt-1">Sprawdź dane poniżej i popraw jeśli trzeba.</p>
-            </div>
-          ) : contractScanning ? (
-            <div className="flex items-center justify-center gap-3 py-5">
-              <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-              <span className="text-sm font-medium text-purple-700">
-                Analizowanie {contractScanFiles.length} {contractScanFiles.length === 1 ? 'pliku' : 'plików'}…
-              </span>
-            </div>
-          ) : contractScanFiles.length === 0 ? (
-            <button type="button" onClick={() => contractScanRef.current?.click()}
-              className="flex items-center justify-center gap-3 w-full py-4 rounded-xl border-2 border-dashed border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-all min-h-[64px]">
-              <Camera size={20} className="text-purple-400" />
-              <span className="text-sm font-medium text-gray-600">Zrób zdjęcie lub wybierz plik (JPG, PNG, PDF)</span>
-            </button>
-          ) : (
-            <div className="space-y-2">
-              <div className="space-y-1.5">
-                {contractScanFiles.map((f, i) => (
-                  <div key={`${f.name}-${i}`} className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-purple-100 text-xs text-gray-700">
-                    <Paperclip size={12} className="text-purple-400 shrink-0" />
-                    <span className="flex-1 truncate font-medium">{f.name}</span>
-                    <button type="button" onClick={() => setContractScanFiles(prev => prev.filter((_, j) => j !== i))}>
-                      <X size={13} className="text-gray-400 hover:text-gray-600" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <button type="button" onClick={() => contractAddScanRef.current?.click()}
-                className="flex items-center gap-2 w-full px-3 py-2 border border-dashed border-gray-200 rounded-lg text-xs text-gray-500 hover:border-purple-300 hover:text-purple-600 transition-colors">
-                <Plus size={13} /> Dodaj kolejne zdjęcie / stronę
-              </button>
-              <button type="button" onClick={() => handleContractScan(contractScanFiles)}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold rounded-xl transition-colors">
-                <Sparkles size={15} />
-                Analizuj {contractScanFiles.length === 1 ? '1 plik' : `${contractScanFiles.length} pliki/plików`}
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Manual entry form */}
-        {!showContractForm ? (
-          <button type="button" onClick={() => setShowContractForm(true)}
-            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border-2 border-dashed border-gray-200 bg-white text-sm font-medium text-gray-500 hover:border-gray-300 hover:text-gray-700 transition-colors">
-            <Plus size={15} /> Dodaj umowę ręcznie
-          </button>
         ) : (
-        <div className="card space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-bold text-gray-900 text-lg">Nowa umowa</h3>
-            <button type="button" onClick={() => setShowContractForm(false)}
-              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors">
-              <X size={16} />
-            </button>
-          </div>
+          <EmptyState
+            icon={Trash2}
+            title="Brak umów na odbiór odpadów"
+            description="Nie dodano jeszcze żadnej umowy dla tego lokalu."
+          />
+        )}
+      </div>
+
+      {/* ── New contract modal ── */}
+      <Dialog open={showContractModal} onClose={() => setShowContractModal(false)} title="Nowa umowa" size="md">
+        <div className="space-y-4">
+          <AiScanRow
+            label="Skanuj umowę AI"
+            files={contractScanFiles}
+            onFilesChange={setContractScanFiles}
+            onScan={() => handleContractScan(contractScanFiles)}
+            scanning={contractScanning}
+            hasResult={!!contractScanResult}
+            onReset={() => { setContractScanResult(null); setContractScanFiles([]) }}
+          >
+            {contractScanResult && (
+              <div className="space-y-1.5">
+                <div className="grid grid-cols-2 gap-1.5 text-xs">
+                  {contractScanResult.company && <div className="bg-white rounded-lg px-3 py-2 border border-purple-100"><span className="text-gray-400">Firma: </span><span className="font-medium text-gray-800">{contractScanResult.company}</span></div>}
+                  {contractScanResult.signed_at && <div className="bg-white rounded-lg px-3 py-2 border border-purple-100"><span className="text-gray-400">Data zawarcia: </span><span className="font-medium text-gray-800">{contractScanResult.signed_at}</span></div>}
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-semibold',
+                    contractScanResult.confidence === 'wysoka' ? 'bg-green-100 text-green-700'
+                    : contractScanResult.confidence === 'srednia' ? 'bg-yellow-100 text-yellow-700'
+                    : 'bg-red-100 text-red-700'
+                  )}>
+                    Pewność: {contractScanResult.confidence}
+                  </span>
+                  <span className="text-[11px] text-purple-600">Sprawdź dane poniżej i popraw jeśli trzeba.</span>
+                </div>
+              </div>
+            )}
+          </AiScanRow>
 
           <div>
             <label className="label">Firma odbierająca odpady <span className="text-red-500">*</span></label>
@@ -522,169 +460,11 @@ export default function OdpadyPage() {
             {savingContract ? 'Zapisywanie…' : 'Zapisz umowę'}
           </button>
         </div>
-        )}
-
-        {/* History */}
-        {contracts.length > 0 ? (
-          <div className="space-y-2">
-            {contracts.map(row => (
-              <ContractCard key={row.id} row={row} onOpen={() => setContractDetail(row)} />
-            ))}
-          </div>
-        ) : (
-          <EmptyState
-            icon={Trash2}
-            title="Brak umów na odbiór odpadów"
-            description="Nie dodano jeszcze żadnej umowy dla tego lokalu."
-          />
-        )}
-      </div>
+      </Dialog>
 
       {/* ════════════════ Harmonogram odbioru odpadów ════════════════ */}
       <div className="space-y-3">
-        <h2 className="font-bold text-gray-900 text-lg">Harmonogram odbioru odpadów</h2>
-
-        {/* AI scan panel */}
-        <div className={cn(
-          'rounded-2xl border-2 p-4 transition-all',
-          reviewItems.length > 0 ? 'border-purple-200 bg-purple-50' : 'border-dashed border-gray-200 bg-white'
-        )}>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-purple-100 rounded-lg">
-                <Sparkles size={15} className="text-purple-600" />
-              </div>
-              <span className="text-sm font-bold text-gray-800">Skanuj harmonogram AI</span>
-              <span className="text-xs text-gray-400 font-normal">opcjonalnie</span>
-            </div>
-            {scheduleScanResult && (
-              <button type="button" onClick={() => { setScheduleScanResult(null); setReviewItems([]); setScheduleScanFiles([]) }}
-                className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
-                <RotateCcw size={12} /> Skanuj ponownie
-              </button>
-            )}
-          </div>
-
-          <input ref={scheduleScanRef} type="file" accept="image/*,.pdf" multiple className="hidden"
-            onChange={e => {
-              const picked = Array.from(e.target.files ?? [])
-              if (picked.length) setScheduleScanFiles(prev => [...prev, ...picked])
-              if (scheduleScanRef.current) scheduleScanRef.current.value = ''
-            }} />
-          <input ref={scheduleAddScanRef} type="file" accept="image/*,.pdf" multiple className="hidden"
-            onChange={e => {
-              const picked = Array.from(e.target.files ?? [])
-              if (picked.length) setScheduleScanFiles(prev => [...prev, ...picked])
-              if (scheduleAddScanRef.current) scheduleAddScanRef.current.value = ''
-            }} />
-
-          {reviewItems.length > 0 ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-xs text-purple-700 font-semibold mb-1">
-                <CheckCircle2 size={13} />
-                Wykryto {reviewItems.length} {reviewItems.length === 1 ? 'pozycję' : 'pozycji'} harmonogramu
-                {scheduleScanResult && (
-                  <span className={cn('ml-auto px-2 py-0.5 rounded-full text-[10px]',
-                    scheduleScanResult.confidence === 'wysoka' ? 'bg-green-100 text-green-700'
-                    : scheduleScanResult.confidence === 'srednia' ? 'bg-yellow-100 text-yellow-700'
-                    : 'bg-red-100 text-red-700'
-                  )}>
-                    Pewność: {scheduleScanResult.confidence}
-                  </span>
-                )}
-              </div>
-              <div className="space-y-1.5">
-                {groupByWasteType(reviewItems).map(group => {
-                  const onceItems = group.items.filter(it => it.frequency === 'once' && it.specific_date)
-                  const otherItems = group.items.filter(it => !(it.frequency === 'once' && it.specific_date))
-                  return (
-                    <div key={group.waste_type} className="px-3 py-2.5 bg-white rounded-lg border border-purple-100 text-sm space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <CalendarClock size={14} className="text-purple-400 shrink-0" />
-                        <div className="min-w-0 flex-1">
-                          <p className="font-semibold text-gray-800 truncate">{group.waste_type}</p>
-                          <p className="text-xs text-gray-500">{summarizeScheduleGroup(group.items)}</p>
-                        </div>
-                        <button type="button" onClick={() => setReviewItems(prev => prev.filter(it => it.waste_type !== group.waste_type))}>
-                          <X size={14} className="text-gray-400 hover:text-gray-600" />
-                        </button>
-                      </div>
-                      {otherItems.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 pl-6">
-                          {otherItems.map((it, idx) => (
-                            <span key={idx} className="px-2 py-0.5 rounded-full bg-gray-100 text-[11px] text-gray-600 flex items-center gap-1">
-                              {describeWasteSchedule(it)}
-                              <button type="button" onClick={() => setReviewItems(prev => prev.filter(x => x !== it))}>
-                                <X size={10} />
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {onceItems.length > 1 && (
-                        <details className="pl-6">
-                          <summary className="text-xs text-purple-600 cursor-pointer">Pokaż wszystkie daty ({onceItems.length})</summary>
-                          <div className="flex flex-wrap gap-1.5 mt-1.5">
-                            {onceItems.map((it, idx) => (
-                              <span key={idx} className="px-2 py-0.5 rounded-full bg-gray-100 text-[11px] text-gray-600 flex items-center gap-1">
-                                {formatDate(it.specific_date as string)}
-                                <button type="button" onClick={() => setReviewItems(prev => prev.filter(x => x !== it))}>
-                                  <X size={10} />
-                                </button>
-                              </span>
-                            ))}
-                          </div>
-                        </details>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-              <button type="button" onClick={handleSaveReviewItems} disabled={savingReview}
-                className={cn('w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-colors',
-                  savingReview ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-brand-green hover:bg-brand-green-dark text-white')}>
-                <Save size={15} />
-                {savingReview ? 'Zapisywanie…' : 'Zapisz harmonogram'}
-              </button>
-            </div>
-          ) : scheduleScanning ? (
-            <div className="flex items-center justify-center gap-3 py-5">
-              <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-              <span className="text-sm font-medium text-purple-700">
-                Analizowanie {scheduleScanFiles.length} {scheduleScanFiles.length === 1 ? 'pliku' : 'plików'}…
-              </span>
-            </div>
-          ) : scheduleScanFiles.length === 0 ? (
-            <button type="button" onClick={() => scheduleScanRef.current?.click()}
-              className="flex items-center justify-center gap-3 w-full py-4 rounded-xl border-2 border-dashed border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-all min-h-[64px]">
-              <Camera size={20} className="text-purple-400" />
-              <span className="text-sm font-medium text-gray-600">Zrób zdjęcie lub wybierz plik (JPG, PNG, PDF)</span>
-            </button>
-          ) : (
-            <div className="space-y-2">
-              <div className="space-y-1.5">
-                {scheduleScanFiles.map((f, i) => (
-                  <div key={`${f.name}-${i}`} className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-purple-100 text-xs text-gray-700">
-                    <Paperclip size={12} className="text-purple-400 shrink-0" />
-                    <span className="flex-1 truncate font-medium">{f.name}</span>
-                    <button type="button" onClick={() => setScheduleScanFiles(prev => prev.filter((_, j) => j !== i))}>
-                      <X size={13} className="text-gray-400 hover:text-gray-600" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <button type="button" onClick={() => scheduleAddScanRef.current?.click()}
-                className="flex items-center gap-2 w-full px-3 py-2 border border-dashed border-gray-200 rounded-lg text-xs text-gray-500 hover:border-purple-300 hover:text-purple-600 transition-colors">
-                <Plus size={13} /> Dodaj kolejne zdjęcie / stronę
-              </button>
-              <button type="button" onClick={() => handleScheduleScan(scheduleScanFiles)}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold rounded-xl transition-colors">
-                <Sparkles size={15} />
-                Analizuj {scheduleScanFiles.length === 1 ? '1 plik' : `${scheduleScanFiles.length} pliki/plików`}
-              </button>
-            </div>
-          )}
-        </div>
+        <SectionHeader title="Harmonogram odbioru odpadów" actionLabel="Nowa pozycja" onAction={() => setShowItemModal(true)} />
 
         {/* Upcoming pickups */}
         {upcoming.length > 0 && (
@@ -703,96 +483,6 @@ export default function OdpadyPage() {
                 </div>
               ))}
             </div>
-          </div>
-        )}
-
-        {/* Manual add */}
-        {!showItemForm ? (
-          <button type="button" onClick={() => setShowItemForm(true)}
-            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border-2 border-dashed border-gray-200 bg-white text-sm font-medium text-gray-500 hover:border-gray-300 hover:text-gray-700 transition-colors">
-            <Plus size={15} /> Dodaj pozycję ręcznie
-          </button>
-        ) : (
-          <div className="card space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-gray-900 text-lg">Nowa pozycja harmonogramu</h3>
-              <button type="button" onClick={() => setShowItemForm(false)}
-                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors">
-                <X size={16} />
-              </button>
-            </div>
-
-            <div>
-              <label className="label">Rodzaj odpadu <span className="text-red-500">*</span></label>
-              <input className="input" placeholder="np. Odpady zmieszane"
-                value={itemForm.waste_type} onChange={e => setItemForm(p => ({ ...p, waste_type: e.target.value }))} />
-            </div>
-
-            <div>
-              <label className="label">Częstotliwość</label>
-              <select className="input" value={itemForm.frequency}
-                onChange={e => setItemForm(p => ({ ...p, frequency: e.target.value as WasteFrequency }))}>
-                {(Object.entries(WASTE_FREQUENCY_LABELS) as [WasteFrequency, string][]).map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
-            </div>
-
-            {(itemForm.frequency === 'weekly' || itemForm.frequency === 'biweekly') && (
-              <div>
-                <label className="label">Dni tygodnia <span className="text-gray-400 font-normal">(można wybrać kilka)</span></label>
-                <div className="flex flex-wrap gap-2">
-                  {WASTE_DAYS.map((d, i) => {
-                    const active = itemForm.days_of_week.includes(i)
-                    return (
-                      <button key={d} type="button" title={d}
-                        onClick={() => setItemForm(p => ({
-                          ...p,
-                          days_of_week: active ? p.days_of_week.filter(x => x !== i) : [...p.days_of_week, i].sort(),
-                        }))}
-                        className={cn(
-                          'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
-                          active
-                            ? 'bg-brand-navy text-white border-brand-navy'
-                            : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
-                        )}>
-                        {d.slice(0, 3)}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {itemForm.frequency === 'biweekly' && (
-              <div>
-                <label className="label">Data odniesienia <span className="text-gray-400 font-normal">(jeden ze znanych odbiorów)</span></label>
-                <input type="date" className="input"
-                  value={itemForm.anchor_date} onChange={e => setItemForm(p => ({ ...p, anchor_date: e.target.value }))} />
-              </div>
-            )}
-
-            {itemForm.frequency === 'monthly' && (
-              <div>
-                <label className="label">Dzień miesiąca</label>
-                <input type="number" min={1} max={31} className="input"
-                  value={itemForm.day_of_month} onChange={e => setItemForm(p => ({ ...p, day_of_month: +e.target.value }))} />
-              </div>
-            )}
-
-            {itemForm.frequency === 'once' && (
-              <div>
-                <label className="label">Data odbioru</label>
-                <input type="date" className="input"
-                  value={itemForm.specific_date} onChange={e => setItemForm(p => ({ ...p, specific_date: e.target.value }))} />
-              </div>
-            )}
-
-            <button type="button" onClick={handleAddItem} disabled={savingItem}
-              className={cn('w-full py-4 rounded-xl text-sm font-bold transition-colors',
-                savingItem ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-brand-green hover:bg-brand-green-dark text-white')}>
-              {savingItem ? 'Zapisywanie…' : 'Dodaj do harmonogramu'}
-            </button>
           </div>
         )}
 
@@ -857,6 +547,169 @@ export default function OdpadyPage() {
           />
         )}
       </div>
+
+      {/* ── New schedule item modal ── */}
+      <Dialog open={showItemModal} onClose={() => setShowItemModal(false)} title="Nowa pozycja harmonogramu" size="md">
+        <div className="space-y-4">
+          <AiScanRow
+            label="Skanuj harmonogram AI"
+            files={scheduleScanFiles}
+            onFilesChange={setScheduleScanFiles}
+            onScan={() => handleScheduleScan(scheduleScanFiles)}
+            scanning={scheduleScanning}
+            hasResult={reviewItems.length > 0}
+            onReset={() => { setScheduleScanResult(null); setReviewItems([]); setScheduleScanFiles([]) }}
+          >
+            {reviewItems.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-purple-700 font-semibold">
+                    Wykryto {reviewItems.length} {reviewItems.length === 1 ? 'pozycję' : 'pozycji'} harmonogramu
+                  </span>
+                  {scheduleScanResult && (
+                    <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-semibold',
+                      scheduleScanResult.confidence === 'wysoka' ? 'bg-green-100 text-green-700'
+                      : scheduleScanResult.confidence === 'srednia' ? 'bg-yellow-100 text-yellow-700'
+                      : 'bg-red-100 text-red-700'
+                    )}>
+                      Pewność: {scheduleScanResult.confidence}
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  {groupByWasteType(reviewItems).map(group => {
+                    const onceItems = group.items.filter(it => it.frequency === 'once' && it.specific_date)
+                    const otherItems = group.items.filter(it => !(it.frequency === 'once' && it.specific_date))
+                    return (
+                      <div key={group.waste_type} className="px-3 py-2.5 bg-white rounded-lg border border-purple-100 text-sm space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <CalendarClock size={14} className="text-purple-400 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-gray-800 truncate">{group.waste_type}</p>
+                            <p className="text-xs text-gray-500">{summarizeScheduleGroup(group.items)}</p>
+                          </div>
+                          <button type="button" onClick={() => setReviewItems(prev => prev.filter(it => it.waste_type !== group.waste_type))}>
+                            <X size={14} className="text-gray-400 hover:text-gray-600" />
+                          </button>
+                        </div>
+                        {otherItems.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 pl-6">
+                            {otherItems.map((it, idx) => (
+                              <span key={idx} className="px-2 py-0.5 rounded-full bg-gray-100 text-[11px] text-gray-600 flex items-center gap-1">
+                                {describeWasteSchedule(it)}
+                                <button type="button" onClick={() => setReviewItems(prev => prev.filter(x => x !== it))}>
+                                  <X size={10} />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {onceItems.length > 1 && (
+                          <details className="pl-6">
+                            <summary className="text-xs text-purple-600 cursor-pointer">Pokaż wszystkie daty ({onceItems.length})</summary>
+                            <div className="flex flex-wrap gap-1.5 mt-1.5">
+                              {onceItems.map((it, idx) => (
+                                <span key={idx} className="px-2 py-0.5 rounded-full bg-gray-100 text-[11px] text-gray-600 flex items-center gap-1">
+                                  {formatDate(it.specific_date as string)}
+                                  <button type="button" onClick={() => setReviewItems(prev => prev.filter(x => x !== it))}>
+                                    <X size={10} />
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          </details>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+                <button type="button" onClick={handleSaveReviewItems} disabled={savingReview}
+                  className={cn('w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-colors',
+                    savingReview ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-brand-green hover:bg-brand-green-dark text-white')}>
+                  <Save size={15} />
+                  {savingReview ? 'Zapisywanie…' : 'Zapisz harmonogram'}
+                </button>
+              </div>
+            )}
+          </AiScanRow>
+
+          {reviewItems.length === 0 && (
+            <>
+              <div>
+                <label className="label">Rodzaj odpadu <span className="text-red-500">*</span></label>
+                <input className="input" placeholder="np. Odpady zmieszane"
+                  value={itemForm.waste_type} onChange={e => setItemForm(p => ({ ...p, waste_type: e.target.value }))} />
+              </div>
+
+              <div>
+                <label className="label">Częstotliwość</label>
+                <select className="input" value={itemForm.frequency}
+                  onChange={e => setItemForm(p => ({ ...p, frequency: e.target.value as WasteFrequency }))}>
+                  {(Object.entries(WASTE_FREQUENCY_LABELS) as [WasteFrequency, string][]).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {(itemForm.frequency === 'weekly' || itemForm.frequency === 'biweekly') && (
+                <div>
+                  <label className="label">Dni tygodnia <span className="text-gray-400 font-normal">(można wybrać kilka)</span></label>
+                  <div className="flex flex-wrap gap-2">
+                    {WASTE_DAYS.map((d, i) => {
+                      const active = itemForm.days_of_week.includes(i)
+                      return (
+                        <button key={d} type="button" title={d}
+                          onClick={() => setItemForm(p => ({
+                            ...p,
+                            days_of_week: active ? p.days_of_week.filter(x => x !== i) : [...p.days_of_week, i].sort(),
+                          }))}
+                          className={cn(
+                            'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+                            active
+                              ? 'bg-brand-navy text-white border-brand-navy'
+                              : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
+                          )}>
+                          {d.slice(0, 3)}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {itemForm.frequency === 'biweekly' && (
+                <div>
+                  <label className="label">Data odniesienia <span className="text-gray-400 font-normal">(jeden ze znanych odbiorów)</span></label>
+                  <input type="date" className="input"
+                    value={itemForm.anchor_date} onChange={e => setItemForm(p => ({ ...p, anchor_date: e.target.value }))} />
+                </div>
+              )}
+
+              {itemForm.frequency === 'monthly' && (
+                <div>
+                  <label className="label">Dzień miesiąca</label>
+                  <input type="number" min={1} max={31} className="input"
+                    value={itemForm.day_of_month} onChange={e => setItemForm(p => ({ ...p, day_of_month: +e.target.value }))} />
+                </div>
+              )}
+
+              {itemForm.frequency === 'once' && (
+                <div>
+                  <label className="label">Data odbioru</label>
+                  <input type="date" className="input"
+                    value={itemForm.specific_date} onChange={e => setItemForm(p => ({ ...p, specific_date: e.target.value }))} />
+                </div>
+              )}
+
+              <button type="button" onClick={handleAddItem} disabled={savingItem}
+                className={cn('w-full py-4 rounded-xl text-sm font-bold transition-colors',
+                  savingItem ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-brand-green hover:bg-brand-green-dark text-white')}>
+                {savingItem ? 'Zapisywanie…' : 'Dodaj do harmonogramu'}
+              </button>
+            </>
+          )}
+        </div>
+      </Dialog>
 
       {/* ── Contract detail dialog ── */}
       <Dialog open={!!contractDetail} onClose={() => setContractDetail(null)} title={contractDetail?.company} size="md">
