@@ -151,20 +151,20 @@ export default async function DashboardPage() {
       ctaLabel: 'Dodaj lokal',
     },
     {
-      id: 'staff',
-      label: 'Zaproś pracowników',
-      description: 'Dodaj członków zespołu i przydziel im role',
-      done: (staffCount ?? 0) > 1,
-      href: '/ustawienia/pracownicy',
-      ctaLabel: 'Zaproś pracownika',
-    },
-    {
       id: 'devices',
       label: 'Dodaj urządzenia chłodnicze',
       description: 'Zarejestruj lodówki i zamrażarki do monitorowania temperatur',
       done: !!data?.hasRegisteredDevices,
       href: '/temperatury',
       ctaLabel: 'Dodaj urządzenie',
+    },
+    {
+      id: 'staff',
+      label: 'Zaproś pracowników',
+      description: 'Dodaj członków zespołu i przydziel im role',
+      done: (staffCount ?? 0) > 1,
+      href: '/ustawienia/pracownicy',
+      ctaLabel: 'Zaproś pracownika',
     },
     {
       id: 'reading',

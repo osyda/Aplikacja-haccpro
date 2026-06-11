@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import {
   Thermometer, CheckCircle2, AlertCircle, Clock,
-  ArrowRight, Settings, ChevronRight, Trash2, Pencil, Circle, Sun, Moon,
+  ArrowRight, Settings, ChevronRight, Trash2, Pencil, Circle, Sun, Moon, Plus,
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -349,9 +349,17 @@ function TempScheduleSettings({ locationId, checksPerDay, splitHour, onChanged }
 
 interface ManagedDevice { id: string; name: string; min_ok: number; max_ok: number; zone: string | null }
 
+/** Common refrigeration equipment types with their typical HACCP temperature norms — used to pre-fill the "add device" form. */
+const DEVICE_TYPES: { label: string; min: number; max: number }[] = [
+  { label: 'Lodówka', min: 0, max: 4 },
+  { label: 'Zamrażarka', min: -22, max: -18 },
+  { label: 'Chłodnia', min: 0, max: 4 },
+  { label: 'Witryna', min: 2, max: 6 },
+]
+
 function DeviceManager({ locationId, onChanged }: { locationId: string; onChanged: () => void }) {
   const [devices, setDevices] = useState<ManagedDevice[]>([])
-  const [loaded, setLoaded] = useState(false)
+  const [addStep, setAddStep] = useState<'closed' | 'type' | 'form'>('closed')
   const [newDev, setNewDev] = useState({ name: '', min: '0', max: '4', zone: '' })
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDev, setEditDev] = useState({ name: '', min: '', max: '', zone: '' })
@@ -360,12 +368,21 @@ function DeviceManager({ locationId, onChanged }: { locationId: string; onChange
   async function load() {
     const { data } = await supabase.from('location_devices').select('*').eq('location_id', locationId).order('created_at')
     setDevices(data ?? [])
-    setLoaded(true)
   }
+
+  useEffect(() => {
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationId])
 
   const zoneOptions = Array.from(
     new Set(devices.map(d => d.zone?.trim()).filter((z): z is string => !!z))
   ).sort((a, b) => a.localeCompare(b, 'pl'))
+
+  function selectDeviceType(type: typeof DEVICE_TYPES[number]) {
+    setNewDev({ name: type.label, min: String(type.min), max: String(type.max), zone: '' })
+    setAddStep('form')
+  }
 
   async function addDevice() {
     if (!newDev.name.trim()) { toast.error('Podaj nazwę urządzenia'); return }
@@ -378,6 +395,7 @@ function DeviceManager({ locationId, onChanged }: { locationId: string; onChange
     })
     if (error) { toast.error(error.message); return }
     setNewDev({ name: '', min: '0', max: '4', zone: '' })
+    setAddStep('closed')
     load()
     onChanged()
     toast.success('Urządzenie dodane')
@@ -410,49 +428,80 @@ function DeviceManager({ locationId, onChanged }: { locationId: string; onChange
     onChanged()
   }
 
-  if (!loaded) {
-    return (
-      <button onClick={load} className="text-sm text-brand-navy hover:underline">
-        Załaduj listę urządzeń…
-      </button>
-    )
-  }
-
   return (
     <div className="space-y-3">
       <datalist id="zone-suggestions">
         {zoneOptions.map(z => <option key={z} value={z} />)}
       </datalist>
 
-      <div className="space-y-2">
-        <div className="flex gap-2 flex-wrap">
-          <input
-            className="input flex-1 min-w-36 text-sm"
-            placeholder="Nazwa (np. Lodówka 1)"
-            value={newDev.name}
-            onChange={e => setNewDev(p => ({ ...p, name: e.target.value }))}
-            onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addDevice())}
-          />
-          <input className="input w-20 text-sm" type="number" step="0.5" placeholder="Min°C"
-            value={newDev.min} onChange={e => setNewDev(p => ({ ...p, min: e.target.value }))} />
-          <input className="input w-20 text-sm" type="number" step="0.5" placeholder="Max°C"
-            value={newDev.max} onChange={e => setNewDev(p => ({ ...p, max: e.target.value }))} />
+      {addStep === 'closed' && (
+        <button
+          onClick={() => setAddStep('type')}
+          className="btn-primary w-full flex items-center justify-center gap-2 py-3"
+        >
+          <Plus size={16} />
+          Dodaj urządzenie
+        </button>
+      )}
+
+      {addStep === 'type' && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-gray-700">Wybierz rodzaj urządzenia:</p>
+          <div className="grid grid-cols-2 gap-2">
+            {DEVICE_TYPES.map(t => (
+              <button
+                key={t.label}
+                onClick={() => selectDeviceType(t)}
+                className="flex flex-col items-start gap-0.5 p-3 rounded-lg border border-gray-200 hover:border-brand-navy hover:bg-brand-navy/5 transition-colors text-left"
+              >
+                <span className="font-semibold text-gray-900 text-sm">{t.label}</span>
+                <span className="text-xs text-gray-400 font-mono">{t.min} – {t.max}°C</span>
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setAddStep('closed')} className="text-sm text-gray-500 hover:underline">
+            Anuluj
+          </button>
         </div>
-        <div className="flex gap-2">
+      )}
+
+      {addStep === 'form' && (
+        <div className="space-y-2 p-3 bg-gray-50 rounded-lg border border-gray-100">
+          <div className="flex gap-2 flex-wrap">
+            <input
+              className="input flex-1 min-w-36 text-sm"
+              placeholder="Nazwa (np. Lodówka 1)"
+              value={newDev.name}
+              onChange={e => setNewDev(p => ({ ...p, name: e.target.value }))}
+              onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addDevice())}
+              autoFocus
+            />
+            <input className="input w-20 text-sm" type="number" step="0.5" placeholder="Min°C"
+              value={newDev.min} onChange={e => setNewDev(p => ({ ...p, min: e.target.value }))} />
+            <input className="input w-20 text-sm" type="number" step="0.5" placeholder="Max°C"
+              value={newDev.max} onChange={e => setNewDev(p => ({ ...p, max: e.target.value }))} />
+          </div>
           <input
-            className="input flex-1 text-sm"
+            className="input w-full text-sm"
             list="zone-suggestions"
             placeholder="Strefa, np. Kuchnia, Sala, Magazyn (opcjonalnie)"
             value={newDev.zone}
             onChange={e => setNewDev(p => ({ ...p, zone: e.target.value }))}
             onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addDevice())}
           />
-          <button onClick={addDevice}
-            className="px-4 py-2 bg-brand-navy text-white text-sm font-medium rounded-lg hover:bg-brand-navy-light shrink-0">
-            Dodaj
-          </button>
+          <div className="flex gap-2">
+            <button onClick={addDevice} className="btn-primary flex-1 text-sm">
+              Dodaj
+            </button>
+            <button
+              onClick={() => setAddStep('closed')}
+              className="px-4 py-2 text-gray-500 text-sm font-medium rounded-lg border border-gray-200 hover:bg-gray-50"
+            >
+              Anuluj
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="space-y-1">
         {devices.map(d => (

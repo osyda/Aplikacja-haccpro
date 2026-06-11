@@ -607,7 +607,7 @@ function AddClientModal({ onClose, onAdded }: { onClose: () => void; onAdded: (o
             )}
 
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Imię i nazwisko właściciela</label>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Imię i nazwisko</label>
               <input
                 type="text"
                 placeholder="np. Jan Kowalski"
@@ -618,7 +618,7 @@ function AddClientModal({ onClose, onAdded }: { onClose: () => void; onAdded: (o
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Email właściciela *</label>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Email *</label>
               <input
                 type="email"
                 required
