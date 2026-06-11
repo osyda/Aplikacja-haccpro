@@ -42,9 +42,13 @@ Format odpowiedzi:
   "confidence": "wysoka lub srednia lub niska"
 }
 
+WAŻNE — harmonogramy roczne (kalendarze z konkretnymi datami na cały rok):
+Jeśli dokument pokazuje konkretne daty odbioru dla całego roku, NIE twórz osobnego wpisu "once" dla każdej pojedynczej daty z kalendarza — to wygenerowałoby setki wpisów. Zamiast tego rozpoznaj powtarzający się wzorzec (np. "zawsze w poniedziałki" → "weekly" z odpowiednim "day_of_week", "co drugi wtorek" → "biweekly" z "anchor_date" ustawionym na jedną z dat). Jeśli dany rodzaj odpadu jest odbierany kilka razy w tygodniu (np. w poniedziałki i czwartki), zwróć dla niego osobny wpis "weekly" dla każdego dnia tygodnia. Wpis "once" zostaw tylko dla naprawdę pojedynczych, nieregularnych odbiorów (np. jednorazowy odbiór gabarytów w konkretnym dniu), a nie dla regularnego harmonogramu.
+
 Jeśli dostałeś kilka stron/zdjęć, potraktuj je jako jeden dokument i połącz informacje z wszystkich. Jeśli nie uda się rozpoznać żadnego harmonogramu, zwróć pustą listę "items".`
 
 export async function POST(req: NextRequest) {
+  let rawText = ''
   try {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -81,7 +85,7 @@ export async function POST(req: NextRequest) {
 
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 2048,
+      max_tokens: 8192,
       messages: [
         {
           role: 'user',
@@ -94,9 +98,20 @@ export async function POST(req: NextRequest) {
     })
 
     const text = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
+    rawText = text
 
-    // Strip potential markdown code fences
-    const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+    if (message.stop_reason === 'max_tokens') {
+      console.error('[scan-waste-schedule] truncated response (max_tokens):', text.slice(-300))
+      return NextResponse.json({ error: 'Harmonogram zawiera zbyt wiele pozycji do zeskanowania naraz. Spróbuj zeskanować mniej stron jednocześnie.' }, { status: 422 })
+    }
+
+    // Strip potential markdown code fences and any leading/trailing prose around the JSON object
+    let cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+    const start = cleaned.indexOf('{')
+    const end = cleaned.lastIndexOf('}')
+    if (start !== -1 && end !== -1 && end > start) {
+      cleaned = cleaned.slice(start, end + 1)
+    }
 
     const result: WasteScheduleScanResult = JSON.parse(cleaned)
     return NextResponse.json(result)
@@ -104,6 +119,7 @@ export async function POST(req: NextRequest) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[scan-waste-schedule] error:', msg)
     if (msg.includes('JSON')) {
+      console.error('[scan-waste-schedule] raw AI response:', rawText)
       return NextResponse.json({ error: 'AI nie zwróciło poprawnych danych. Spróbuj ponownie.' }, { status: 422 })
     }
     return NextResponse.json({ error: msg }, { status: 500 })
