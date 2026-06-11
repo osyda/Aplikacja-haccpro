@@ -41,7 +41,7 @@ function emptyItemForm() {
   return {
     waste_type: '',
     frequency: 'weekly' as WasteFrequency,
-    day_of_week: 0,
+    days_of_week: [0] as number[],
     day_of_month: 1,
     specific_date: todayStr(),
     anchor_date: todayStr(),
@@ -271,21 +271,46 @@ export default function OdpadyPage() {
   // ── Schedule: manual add ──
   async function handleAddItem() {
     if (!itemForm.waste_type.trim()) { toast.error('Wpisz rodzaj odpadu.'); return }
+    const isWeekly = itemForm.frequency === 'weekly' || itemForm.frequency === 'biweekly'
+    if (isWeekly && itemForm.days_of_week.length === 0) { toast.error('Wybierz przynajmniej jeden dzień tygodnia.'); return }
+
+    const wasteType = itemForm.waste_type.trim()
+    const rows: {
+      location_id: string
+      waste_type: string
+      frequency: WasteFrequency
+      day_of_week: number | null
+      day_of_month: number | null
+      specific_date: string | null
+      anchor_date: string | null
+      created_by: string
+    }[] = isWeekly
+      ? itemForm.days_of_week.map(day => ({
+          location_id: locId,
+          waste_type: wasteType,
+          frequency: itemForm.frequency,
+          day_of_week: day,
+          day_of_month: null,
+          specific_date: null,
+          anchor_date: itemForm.frequency === 'biweekly' ? itemForm.anchor_date : null,
+          created_by: userId,
+        }))
+      : [{
+          location_id: locId,
+          waste_type: wasteType,
+          frequency: itemForm.frequency,
+          day_of_week: null,
+          day_of_month: itemForm.frequency === 'monthly' ? itemForm.day_of_month : null,
+          specific_date: itemForm.frequency === 'once' ? itemForm.specific_date : null,
+          anchor_date: null,
+          created_by: userId,
+        }]
 
     setSavingItem(true)
-    const { error } = await supabase.from('waste_schedule_items').insert({
-      location_id: locId,
-      waste_type: itemForm.waste_type.trim(),
-      frequency: itemForm.frequency,
-      day_of_week: itemForm.frequency === 'weekly' || itemForm.frequency === 'biweekly' ? itemForm.day_of_week : null,
-      day_of_month: itemForm.frequency === 'monthly' ? itemForm.day_of_month : null,
-      specific_date: itemForm.frequency === 'once' ? itemForm.specific_date : null,
-      anchor_date: itemForm.frequency === 'biweekly' ? itemForm.anchor_date : null,
-      created_by: userId,
-    })
+    const { error } = await supabase.from('waste_schedule_items').insert(rows)
     setSavingItem(false)
     if (error) { toast.error('Błąd zapisu: ' + error.message); return }
-    toast.success('Pozycja harmonogramu dodana!')
+    toast.success(rows.length > 1 ? 'Pozycje harmonogramu dodane!' : 'Pozycja harmonogramu dodana!')
     setItemForm(emptyItemForm())
     setShowItemForm(false)
     fetchData()
@@ -670,11 +695,27 @@ export default function OdpadyPage() {
 
             {(itemForm.frequency === 'weekly' || itemForm.frequency === 'biweekly') && (
               <div>
-                <label className="label">Dzień tygodnia</label>
-                <select className="input" value={itemForm.day_of_week}
-                  onChange={e => setItemForm(p => ({ ...p, day_of_week: +e.target.value }))}>
-                  {WASTE_DAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}
-                </select>
+                <label className="label">Dni tygodnia <span className="text-gray-400 font-normal">(można wybrać kilka)</span></label>
+                <div className="flex flex-wrap gap-2">
+                  {WASTE_DAYS.map((d, i) => {
+                    const active = itemForm.days_of_week.includes(i)
+                    return (
+                      <button key={d} type="button" title={d}
+                        onClick={() => setItemForm(p => ({
+                          ...p,
+                          days_of_week: active ? p.days_of_week.filter(x => x !== i) : [...p.days_of_week, i].sort(),
+                        }))}
+                        className={cn(
+                          'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+                          active
+                            ? 'bg-brand-navy text-white border-brand-navy'
+                            : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
+                        )}>
+                        {d.slice(0, 3)}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
             )}
 
