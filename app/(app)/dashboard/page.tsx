@@ -34,7 +34,7 @@ async function getDashboardData(locationId: string) {
   const checksPerDay = locationRes.data?.temp_checks_per_day ?? 1
   const splitHour = locationRes.data?.temp_check_split_hour ?? 14
   const splitTime = new Date(getTodaySplit(splitHour)).getTime()
-  const pmDue = new Date().getHours() >= splitHour
+  const pmDue = Date.now() >= splitTime
 
   // Build set of all device names (registered + orphan) — same logic as temperatures page
   const registeredNames = new Set((devicesRes.data ?? []).map(d => d.name as string))
@@ -97,6 +97,7 @@ async function getDashboardData(locationId: string) {
     tempProgress: totalDevices > 0 ? Math.round((checkedDevices / totalDevices) * 100) : 0,
     tempAlarms,
     checksPerDay,
+    splitHour,
     missingAm,
     missingPm,
     pmDue,
@@ -208,22 +209,40 @@ export default async function DashboardPage() {
         label: `Alarmy temperatur (${data.tempAlarms})`, href: '/temperatury',
       })
     }
-    if (data.checksPerDay === 2) {
-      if (data.missingAm > 0) {
+    if (data.checksPerDay === 2 && data.totalDevices > 0) {
+      const amDone = data.missingAm === 0
+      priorities.push({
+        id: 'temp-am',
+        icon: Sun,
+        iconClass: amDone ? 'text-brand-green' : 'text-orange-500',
+        bgClass: amDone ? 'bg-green-50' : 'bg-orange-50',
+        label: amDone
+          ? `Poranny odczyt temperatur — wykonano (${data.totalDevices}/${data.totalDevices})`
+          : `Poranny odczyt temperatur — do wpisania (${data.missingAm}/${data.totalDevices})`,
+        href: '/temperatury',
+      })
+
+      if (!data.pmDue) {
         priorities.push({
-          id: 'temp-missing-am', icon: Sun, iconClass: 'text-orange-500', bgClass: 'bg-orange-50',
-          label: data.missingAm === 1 ? '1 poranny odczyt do wpisania' : `Poranne odczyty do wpisania (${data.missingAm})`,
+          id: 'temp-pm',
+          icon: Moon, iconClass: 'text-gray-400', bgClass: 'bg-gray-100',
+          label: `Popołudniowy odczyt temperatur — od godziny ${String(data.splitHour).padStart(2, '0')}:00`,
+          href: '/temperatury',
+        })
+      } else {
+        const pmDone = data.missingPm === 0
+        priorities.push({
+          id: 'temp-pm',
+          icon: Moon,
+          iconClass: pmDone ? 'text-brand-green' : 'text-orange-500',
+          bgClass: pmDone ? 'bg-green-50' : 'bg-orange-50',
+          label: pmDone
+            ? `Popołudniowy odczyt temperatur — wykonano (${data.totalDevices}/${data.totalDevices})`
+            : `Popołudniowy odczyt temperatur — do wpisania (${data.missingPm}/${data.totalDevices})`,
           href: '/temperatury',
         })
       }
-      if (data.pmDue && data.missingPm > 0) {
-        priorities.push({
-          id: 'temp-missing-pm', icon: Moon, iconClass: 'text-orange-500', bgClass: 'bg-orange-50',
-          label: data.missingPm === 1 ? '1 popołudniowy odczyt do wpisania' : `Popołudniowe odczyty do wpisania (${data.missingPm})`,
-          href: '/temperatury',
-        })
-      }
-    } else {
+    } else if (data.checksPerDay !== 2) {
       const missing = data.totalDevices - data.checkedDevices
       if (missing > 0) {
         priorities.push({
