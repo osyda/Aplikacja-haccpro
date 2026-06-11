@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import {
   Thermometer, CheckCircle2, AlertCircle, Clock,
-  ArrowRight, Settings, ChevronRight, Trash2, Pencil,
+  ArrowRight, Settings, ChevronRight, Trash2, Pencil, Circle, Sun, Moon,
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -21,11 +21,31 @@ import { CompactRecordCard } from '@/components/ui/compact-record-card'
 
 type FilterType = 'all' | 'missing' | 'ok' | 'alarm'
 
-function getDeviceStatus(d: DeviceWithStatus): 'ok' | 'alarm' | 'missing' | 'unchecked' {
+/** True once we're past the location's configured split hour (afternoon check window is open). */
+function isPmDue(splitHour: number): boolean {
+  return new Date().getHours() >= splitHour
+}
+
+function isDeviceMissing(d: DeviceWithStatus, checksPerDay: number, pmDue: boolean): boolean {
+  if (checksPerDay === 2) return d.amCount === 0 || (pmDue && d.pmCount === 0)
+  return d.todayCount === 0
+}
+
+function getDeviceStatus(d: DeviceWithStatus, checksPerDay: number, pmDue: boolean): 'ok' | 'alarm' | 'missing' | 'unchecked' {
   if (d.lastTemp === null) return 'unchecked'
-  if (d.todayCount === 0) return 'missing'
   if (d.lastOk === false) return 'alarm'
+  if (isDeviceMissing(d, checksPerDay, pmDue)) return 'missing'
   return 'ok'
+}
+
+/** More specific "missing" label for 2x-daily locations — which check (rano/popołudnie) is still due. */
+function getMissingLabel(d: DeviceWithStatus, pmDue: boolean): string {
+  const amMissing = d.amCount === 0
+  const pmMissing = pmDue && d.pmCount === 0
+  if (amMissing && pmMissing) return 'Brak wpisów dziś'
+  if (amMissing) return 'Brak porannego wpisu'
+  if (pmMissing) return 'Brak popołudniowego wpisu'
+  return 'Brak wpisu dziś'
 }
 
 function groupDevicesByZone(devices: DeviceWithStatus[]): { zone: string | null; devices: DeviceWithStatus[] }[] {
@@ -61,11 +81,13 @@ const STATUS_STYLE = {
 interface QuickEntryModalProps {
   device: DeviceWithStatus | null
   locationId: string
+  checksPerDay: number
+  pmDue: boolean
   onClose: () => void
   onSaved: () => void
 }
 
-function QuickEntryModal({ device, locationId, onClose, onSaved }: QuickEntryModalProps) {
+function QuickEntryModal({ device, locationId, checksPerDay, pmDue, onClose, onSaved }: QuickEntryModalProps) {
   const [temp, setTemp] = useState('')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
@@ -145,7 +167,9 @@ function QuickEntryModal({ device, locationId, onClose, onSaved }: QuickEntryMod
       open={!!device}
       onClose={onClose}
       title={device?.name}
-      description={device ? `Norma: ${device.min_ok} – ${device.max_ok}°C` : undefined}
+      description={device
+        ? `Norma: ${device.min_ok} – ${device.max_ok}°C${checksPerDay === 2 ? ` • Odczyt ${pmDue ? 'popołudniowy' : 'poranny'}` : ''}`
+        : undefined}
       size="sm"
     >
       {device && (
@@ -251,6 +275,75 @@ function QuickEntryModal({ device, locationId, onClose, onSaved }: QuickEntryMod
         </div>
       )}
     </Dialog>
+  )
+}
+
+interface TempScheduleSettingsProps {
+  locationId: string
+  checksPerDay: number
+  splitHour: number
+  onChanged: () => void
+}
+
+function TempScheduleSettings({ locationId, checksPerDay, splitHour, onChanged }: TempScheduleSettingsProps) {
+  const [saving, setSaving] = useState(false)
+  const supabase = createClient()
+
+  async function update(updates: { temp_checks_per_day?: number; temp_check_split_hour?: number }) {
+    setSaving(true)
+    const { error } = await supabase.from('locations').update(updates).eq('id', locationId)
+    setSaving(false)
+    if (error) { toast.error(error.message); return }
+    onChanged()
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2">
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => checksPerDay !== 1 && update({ temp_checks_per_day: 1 })}
+          className={cn(
+            'flex-1 px-3 py-2 rounded-lg text-sm border transition-colors',
+            checksPerDay === 1 ? 'border-brand-navy bg-brand-navy text-white font-medium' : 'border-gray-200 hover:border-gray-300'
+          )}
+        >
+          1x dziennie
+        </button>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => checksPerDay !== 2 && update({ temp_checks_per_day: 2 })}
+          className={cn(
+            'flex-1 px-3 py-2 rounded-lg text-sm border transition-colors',
+            checksPerDay === 2 ? 'border-brand-navy bg-brand-navy text-white font-medium' : 'border-gray-200 hover:border-gray-300'
+          )}
+        >
+          2x dziennie
+        </button>
+      </div>
+      {checksPerDay === 2 && (
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600 flex-1">Drugi spis (popołudniowy) od godziny:</label>
+          <select
+            className="input w-24 text-sm"
+            value={splitHour}
+            disabled={saving}
+            onChange={e => update({ temp_check_split_hour: Number(e.target.value) })}
+          >
+            {Array.from({ length: 24 }, (_, h) => (
+              <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>
+            ))}
+          </select>
+        </div>
+      )}
+      {checksPerDay === 2 && (
+        <p className="text-xs text-gray-400">
+          Każde urządzenie trzeba sprawdzić raz przed i raz po tej godzinie.
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -416,28 +509,36 @@ interface TemperatureBoardProps {
   devices: DeviceWithStatus[]
   locationId: string
   canManageDevices?: boolean
+  checksPerDay: number
+  splitHour: number
 }
 
-export function TemperatureBoard({ devices, locationId, canManageDevices = true }: TemperatureBoardProps) {
+export function TemperatureBoard({ devices, locationId, canManageDevices = true, checksPerDay, splitHour }: TemperatureBoardProps) {
   const [filter, setFilter] = useState<FilterType>('missing')
   const [showManager, setShowManager] = useState(false)
   const [selected, setSelected] = useState<DeviceWithStatus | null>(null)
   const router = useRouter()
 
-  const todayChecked = devices.filter(d => d.todayCount > 0).length
+  const pmDue = isPmDue(splitHour)
   const total = devices.length
-  const progress = total > 0 ? Math.round((todayChecked / total) * 100) : 0
+
+  const todayChecked = devices.filter(d => d.todayCount > 0).length
+  const progressTotal = checksPerDay === 2 ? total * (pmDue ? 2 : 1) : total
+  const progressDone = checksPerDay === 2
+    ? devices.reduce((sum, d) => sum + (d.amCount > 0 ? 1 : 0) + (pmDue && d.pmCount > 0 ? 1 : 0), 0)
+    : todayChecked
+  const progress = progressTotal > 0 ? Math.round((progressDone / progressTotal) * 100) : 0
 
   const counts = {
     all: devices.length,
-    missing: devices.filter(d => d.todayCount === 0).length,
-    ok: devices.filter(d => d.todayCount > 0 && d.lastOk !== false).length,
+    missing: devices.filter(d => isDeviceMissing(d, checksPerDay, pmDue)).length,
+    ok: devices.filter(d => !isDeviceMissing(d, checksPerDay, pmDue) && d.lastOk !== false).length,
     alarm: devices.filter(d => d.lastOk === false).length,
   }
 
   const filtered = devices.filter(d => {
-    if (filter === 'missing') return d.todayCount === 0
-    if (filter === 'ok') return d.todayCount > 0 && d.lastOk !== false
+    if (filter === 'missing') return isDeviceMissing(d, checksPerDay, pmDue)
+    if (filter === 'ok') return !isDeviceMissing(d, checksPerDay, pmDue) && d.lastOk !== false
     if (filter === 'alarm') return d.lastOk === false
     return true
   })
@@ -445,7 +546,7 @@ export function TemperatureBoard({ devices, locationId, canManageDevices = true 
   const groupedDevices = groupDevicesByZone(filtered)
   const showZoneHeaders = groupedDevices.length > 1
 
-  const firstUnchecked = devices.find(d => d.todayCount === 0)
+  const nextDue = devices.find(d => isDeviceMissing(d, checksPerDay, pmDue))
 
   const filterOptions: { value: FilterType; label: string; count: number }[] = [
     { value: 'missing', label: 'Nieuzupełnione', count: counts.missing },
@@ -475,47 +576,63 @@ export function TemperatureBoard({ devices, locationId, canManageDevices = true 
 
       {/* Device manager */}
       {showManager && canManageDevices && (
-        <div className="card space-y-3">
-          <p className="font-semibold text-gray-800 text-sm flex items-center gap-2">
-            <Settings size={14} />
-            Urządzenia chłodnicze
-          </p>
-          <DeviceManager locationId={locationId} onChanged={() => router.refresh()} />
-        </div>
+        <>
+          <div className="card space-y-3">
+            <p className="font-semibold text-gray-800 text-sm flex items-center gap-2">
+              <Clock size={14} />
+              Częstotliwość spisywania temperatur
+            </p>
+            <TempScheduleSettings
+              locationId={locationId}
+              checksPerDay={checksPerDay}
+              splitHour={splitHour}
+              onChanged={() => router.refresh()}
+            />
+          </div>
+          <div className="card space-y-3">
+            <p className="font-semibold text-gray-800 text-sm flex items-center gap-2">
+              <Settings size={14} />
+              Urządzenia chłodnicze
+            </p>
+            <DeviceManager locationId={locationId} onChanged={() => router.refresh()} />
+          </div>
+        </>
       )}
 
       {/* Progress bar */}
       {total > 0 && (
         <div className="card py-4 px-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-semibold text-gray-700">Sprawdzone dzisiaj</span>
+            <span className="text-sm font-semibold text-gray-700">
+              Sprawdzone dzisiaj{checksPerDay === 2 && (pmDue ? ' (rano + popołudnie)' : ' (rano)')}
+            </span>
             <span className={cn(
               'text-sm font-bold tabular-nums',
-              todayChecked === total ? 'text-green-600'
-                : todayChecked === 0 ? 'text-gray-400'
+              progressDone === progressTotal ? 'text-green-600'
+                : progressDone === 0 ? 'text-gray-400'
                 : 'text-orange-500'
             )}>
-              {todayChecked} / {total}
+              {progressDone} / {progressTotal}
             </span>
           </div>
           <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
             <div
               className={cn(
                 'h-full rounded-full transition-all duration-700',
-                todayChecked === total ? 'bg-green-500'
-                  : todayChecked > 0 ? 'bg-orange-400'
+                progressDone === progressTotal ? 'bg-green-500'
+                  : progressDone > 0 ? 'bg-orange-400'
                   : 'bg-gray-200'
               )}
               style={{ width: `${progress}%` }}
             />
           </div>
-          {firstUnchecked && todayChecked < total && (
+          {nextDue && progressDone < progressTotal && (
             <button
-              onClick={() => setSelected(firstUnchecked)}
+              onClick={() => setSelected(nextDue)}
               className="mt-3 flex items-center gap-1.5 text-sm text-brand-navy hover:text-brand-navy-light font-medium"
             >
               <ArrowRight size={14} />
-              Następne nieuzupełnione: {firstUnchecked.name}
+              Następne nieuzupełnione: {nextDue.name}
             </button>
           )}
         </div>
@@ -546,17 +663,30 @@ export function TemperatureBoard({ devices, locationId, canManageDevices = true 
                 </p>
               )}
               {group.devices.map(device => {
-                const status = getDeviceStatus(device)
+                const status = getDeviceStatus(device, checksPerDay, pmDue)
                 const s = STATUS_STYLE[status]
+                const badgeLabel = status === 'missing' && checksPerDay === 2 ? getMissingLabel(device, pmDue) : s.label
                 return (
                   <div key={device.id}>
                     <CompactRecordCard
                       dotClassName={s.dot}
                       title={device.name}
-                      meta={device.lastTemp !== null
+                      meta={checksPerDay === 2 ? (
+                        <span className="flex items-center gap-2.5 flex-wrap">
+                          <span className={cn('inline-flex items-center gap-1', device.amCount > 0 ? 'text-green-600' : 'text-gray-400')}>
+                            {device.amCount > 0 ? <CheckCircle2 size={11} /> : <Circle size={11} />}
+                            <Sun size={11} />
+                          </span>
+                          <span className={cn('inline-flex items-center gap-1', device.pmCount > 0 ? 'text-green-600' : pmDue ? 'text-gray-400' : 'text-gray-300')}>
+                            {device.pmCount > 0 ? <CheckCircle2 size={11} /> : <Circle size={11} />}
+                            <Moon size={11} />
+                          </span>
+                          {device.lastTemp !== null && <span className="font-mono">{device.lastTemp}°C</span>}
+                        </span>
+                      ) : device.lastTemp !== null
                         ? <>Ostatni: <span className="font-mono">{device.lastTemp}°C</span>{device.lastMeasuredAt && <> · {formatDateTime(device.lastMeasuredAt)}</>}</>
                         : `Norma: ${device.min_ok} – ${device.max_ok}°C`}
-                      badge={<span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', s.badge)}>{s.label}</span>}
+                      badge={<span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', s.badge)}>{badgeLabel}</span>}
                       onClick={() => setSelected(device)}
                     />
                     <Link
@@ -590,6 +720,8 @@ export function TemperatureBoard({ devices, locationId, canManageDevices = true 
       <QuickEntryModal
         device={selected}
         locationId={locationId}
+        checksPerDay={checksPerDay}
+        pmDue={pmDue}
         onClose={() => setSelected(null)}
         onSaved={() => router.refresh()}
       />

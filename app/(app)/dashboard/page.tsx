@@ -2,10 +2,10 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import {
   Thermometer, Truck, Droplets, AlertTriangle, ChevronRight, CheckCircle2,
-  GraduationCap, Stethoscope, FileText, Apple, Bug,
+  GraduationCap, Stethoscope, FileText, Apple, Bug, Sun, Moon,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { getTodayStart, getTodayEnd, isTemperatureOk, cn } from '@/lib/utils'
+import { getTodayStart, getTodayEnd, getTodaySplit, isTemperatureOk, cn } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/page-header'
 import { Badge } from '@/components/ui/badge'
 import { GettingStarted, type OnboardingStep } from '@/components/onboarding/getting-started'
@@ -15,7 +15,7 @@ async function getDashboardData(locationId: string) {
   const todayStart = getTodayStart()
   const todayEnd = getTodayEnd()
 
-  const [allTempLogsRes, deliveryLogs, cleaningLogs, nonconformities, devicesRes, cleaningTasksRes, completedTaskIdsRes] = await Promise.all([
+  const [allTempLogsRes, deliveryLogs, cleaningLogs, nonconformities, devicesRes, cleaningTasksRes, completedTaskIdsRes, locationRes] = await Promise.all([
     // fetch recent logs (not just today) to determine current alarm status per device
     supabase.from('temperature_logs').select('*').eq('location_id', locationId)
       .order('measured_at', { ascending: false }).limit(300),
@@ -25,11 +25,16 @@ async function getDashboardData(locationId: string) {
     supabase.from('location_devices').select('id,name,min_ok,max_ok').eq('location_id', locationId),
     supabase.from('cleaning_tasks').select('id,frequency,day_of_week,day_of_month').eq('location_id', locationId).eq('is_active', true),
     supabase.from('cleaning_logs').select('cleaning_task_id').eq('location_id', locationId).gte('cleaned_at', todayStart).not('cleaning_task_id', 'is', null),
+    supabase.from('locations').select('temp_checks_per_day, temp_check_split_hour').eq('id', locationId).single(),
   ])
 
   const allTempLogs = allTempLogsRes.data ?? []
   const dLogs = deliveryLogs.data ?? []
   const cLogs = cleaningLogs.data ?? []
+  const checksPerDay = locationRes.data?.temp_checks_per_day ?? 1
+  const splitHour = locationRes.data?.temp_check_split_hour ?? 14
+  const splitTime = new Date(getTodaySplit(splitHour)).getTime()
+  const pmDue = new Date().getHours() >= splitHour
 
   // Build set of all device names (registered + orphan) — same logic as temperatures page
   const registeredNames = new Set((devicesRes.data ?? []).map(d => d.name as string))
@@ -39,15 +44,25 @@ async function getDashboardData(locationId: string) {
 
   const todayStartDate = new Date(todayStart)
 
-  // Per-device: last log + today count
+  // Per-device: last log + today count (or AM/PM counts when checking twice daily)
   let checkedDevices = 0
   let tempAlarms = 0
+  let missingAm = 0
+  let missingPm = 0
   for (const name of Array.from(allDeviceNames)) {
     const dv = (devicesRes.data ?? []).find(d => d.name === name)
     const logs = allTempLogs.filter(l => l.device_name === name)
     const lastLog = logs[0] ?? null
-    const todayCount = logs.filter(l => new Date(l.measured_at) >= todayStartDate).length
-    if (todayCount > 0) checkedDevices++
+    const todayLogs = logs.filter(l => new Date(l.measured_at) >= todayStartDate)
+    if (checksPerDay === 2) {
+      const amCount = todayLogs.filter(l => new Date(l.measured_at).getTime() < splitTime).length
+      const pmCount = todayLogs.filter(l => new Date(l.measured_at).getTime() >= splitTime).length
+      if (amCount === 0) missingAm++
+      if (pmDue && pmCount === 0) missingPm++
+      if (amCount > 0 && (!pmDue || pmCount > 0)) checkedDevices++
+    } else {
+      if (todayLogs.length > 0) checkedDevices++
+    }
     if (lastLog) {
       const min = dv?.min_ok ?? lastLog.min_ok
       const max = dv?.max_ok ?? lastLog.max_ok
@@ -81,6 +96,10 @@ async function getDashboardData(locationId: string) {
     checkedDevices,
     tempProgress: totalDevices > 0 ? Math.round((checkedDevices / totalDevices) * 100) : 0,
     tempAlarms,
+    checksPerDay,
+    missingAm,
+    missingPm,
+    pmDue,
     deliveryCount: dLogs.length,
     lastDelivery,
     cleaningCount: cLogs.length,
@@ -189,13 +208,30 @@ export default async function DashboardPage() {
         label: `Alarmy temperatur (${data.tempAlarms})`, href: '/temperatury',
       })
     }
-    const missing = data.totalDevices - data.checkedDevices
-    if (missing > 0) {
-      priorities.push({
-        id: 'temp-missing', icon: Thermometer, iconClass: 'text-orange-500', bgClass: 'bg-orange-50',
-        label: missing === 1 ? '1 temperatura do wpisania' : `Temperatury do wpisania (${missing})`,
-        href: '/temperatury',
-      })
+    if (data.checksPerDay === 2) {
+      if (data.missingAm > 0) {
+        priorities.push({
+          id: 'temp-missing-am', icon: Sun, iconClass: 'text-orange-500', bgClass: 'bg-orange-50',
+          label: data.missingAm === 1 ? '1 poranny odczyt do wpisania' : `Poranne odczyty do wpisania (${data.missingAm})`,
+          href: '/temperatury',
+        })
+      }
+      if (data.pmDue && data.missingPm > 0) {
+        priorities.push({
+          id: 'temp-missing-pm', icon: Moon, iconClass: 'text-orange-500', bgClass: 'bg-orange-50',
+          label: data.missingPm === 1 ? '1 popołudniowy odczyt do wpisania' : `Popołudniowe odczyty do wpisania (${data.missingPm})`,
+          href: '/temperatury',
+        })
+      }
+    } else {
+      const missing = data.totalDevices - data.checkedDevices
+      if (missing > 0) {
+        priorities.push({
+          id: 'temp-missing', icon: Thermometer, iconClass: 'text-orange-500', bgClass: 'bg-orange-50',
+          label: missing === 1 ? '1 temperatura do wpisania' : `Temperatury do wpisania (${missing})`,
+          href: '/temperatury',
+        })
+      }
     }
     if (data.openNonconformities > 0) {
       priorities.push({

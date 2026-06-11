@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { getTodayStart, isTemperatureOk } from '@/lib/utils'
+import { getTodayStart, getTodaySplit, isTemperatureOk } from '@/lib/utils'
 import { resolvePermissions } from '@/lib/permissions'
 import { TemperatureBoard } from './temperature-board'
 import type { AppPermissions } from '@/lib/permissions'
@@ -14,6 +14,8 @@ export interface DeviceWithStatus {
   lastMeasuredAt: string | null
   lastOk: boolean | null
   todayCount: number
+  amCount: number
+  pmCount: number
 }
 
 export default async function TemperaturyPage() {
@@ -25,14 +27,18 @@ export default async function TemperaturyPage() {
   const permissions = resolvePermissions(profile?.role, profile?.permissions as Partial<AppPermissions> | null)
   const todayStart = getTodayStart()
 
-  const [devicesRes, logsRes] = await Promise.all([
+  const [devicesRes, logsRes, locationRes] = await Promise.all([
     supabase.from('location_devices').select('*').eq('location_id', locationId).order('created_at'),
     supabase.from('temperature_logs').select('*').eq('location_id', locationId)
       .order('measured_at', { ascending: false }).limit(300),
+    supabase.from('locations').select('temp_checks_per_day, temp_check_split_hour').eq('id', locationId).single(),
   ])
 
   const devices = devicesRes.data ?? []
   const allLogs = logsRes.data ?? []
+  const checksPerDay = locationRes.data?.temp_checks_per_day ?? 1
+  const splitHour = locationRes.data?.temp_check_split_hour ?? 14
+  const splitTime = new Date(getTodaySplit(splitHour)).getTime()
 
   const deviceStatuses: DeviceWithStatus[] = []
   const knownNames = new Set<string>()
@@ -52,6 +58,8 @@ export default async function TemperaturyPage() {
       lastMeasuredAt: last?.measured_at ?? null,
       lastOk: last ? isTemperatureOk(last.temperature, device.min_ok, device.max_ok) : null,
       todayCount: todayLogs.length,
+      amCount: todayLogs.filter(l => new Date(l.measured_at).getTime() < splitTime).length,
+      pmCount: todayLogs.filter(l => new Date(l.measured_at).getTime() >= splitTime).length,
     })
   }
 
@@ -71,6 +79,8 @@ export default async function TemperaturyPage() {
       lastMeasuredAt: last.measured_at,
       lastOk: isTemperatureOk(last.temperature, last.min_ok, last.max_ok),
       todayCount: todayLogs.length,
+      amCount: todayLogs.filter(l => new Date(l.measured_at).getTime() < splitTime).length,
+      pmCount: todayLogs.filter(l => new Date(l.measured_at).getTime() >= splitTime).length,
     })
   }
 
@@ -79,6 +89,8 @@ export default async function TemperaturyPage() {
       devices={deviceStatuses}
       locationId={locationId}
       canManageDevices={permissions.temperatures_manage_devices}
+      checksPerDay={checksPerDay}
+      splitHour={splitHour}
     />
   )
 }

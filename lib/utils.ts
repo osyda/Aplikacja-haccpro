@@ -39,3 +39,10 @@ export function getTodayEnd() {
   d.setHours(23, 59, 59, 999)
   return d.toISOString()
 }
+
+/** Today's timestamp at the given hour — used to split AM/PM temperature-check windows. */
+export function getTodaySplit(hour: number) {
+  const d = new Date()
+  d.setHours(hour, 0, 0, 0)
+  return d.toISOString()
+}
