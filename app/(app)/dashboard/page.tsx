@@ -9,6 +9,16 @@ import { getTodayStart, getTodayEnd, getTodaySplit, isTemperatureOk, cn } from '
 import { PageHeader } from '@/components/ui/page-header'
 import { Badge } from '@/components/ui/badge'
 import { GettingStarted, type OnboardingStep } from '@/components/onboarding/getting-started'
+import { getCurrentProfile, getCurrentPermissions } from '@/lib/get-profile'
+import type { PermissionKey } from '@/lib/permissions'
+
+// Maps dashboard "Priorytety na dziś" links to the permission required to see them
+const PRIORITY_PERMISSIONS: Record<string, PermissionKey> = {
+  '/temperatury': 'temperatures',
+  '/niezgodnosci': 'nonconformities',
+  '/mycie': 'cleaning',
+  '/dostawy': 'deliveries',
+}
 
 async function getDashboardData(locationId: string) {
   const supabase = createClient()
@@ -114,13 +124,12 @@ async function getDashboardData(locationId: string) {
 
 export default async function DashboardPage() {
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('location_id, org_id, full_name, locations(name)')
-    .eq('id', user!.id)
-    .single()
+  const [profileResult, permissions] = await Promise.all([
+    getCurrentProfile(),
+    getCurrentPermissions(),
+  ])
+  const user = profileResult?.user
+  const profile = profileResult?.profile
 
   const locationId = profile?.location_id ?? ''
   const locRaw = profile?.locations
@@ -280,12 +289,13 @@ export default async function DashboardPage() {
     }
   }
 
-  const QUICK_ACTIONS: { href: string; label: string; icon: LucideIcon }[] = [
-    { href: '/temperatury', label: 'Dodaj temperaturę', icon: Thermometer },
-    { href: '/dostawy/nowa', label: 'Dodaj dostawę', icon: Truck },
-    { href: '/mycie', label: 'Dodaj mycie', icon: Droplets },
-    { href: '/niezgodnosci', label: 'Zgłoś niezgodność', icon: AlertTriangle },
+  const QUICK_ACTIONS_ALL: { href: string; label: string; icon: LucideIcon; permission: PermissionKey }[] = [
+    { href: '/temperatury', label: 'Dodaj temperaturę', icon: Thermometer, permission: 'temperatures' },
+    { href: '/dostawy/nowa', label: 'Dodaj dostawę', icon: Truck, permission: 'deliveries' },
+    { href: '/mycie', label: 'Dodaj mycie', icon: Droplets, permission: 'cleaning' },
+    { href: '/niezgodnosci', label: 'Zgłoś niezgodność', icon: AlertTriangle, permission: 'nonconformities' },
   ]
+  const QUICK_ACTIONS = QUICK_ACTIONS_ALL.filter(a => permissions[a.permission])
 
   interface ModuleStatus {
     id: string
@@ -296,20 +306,23 @@ export default async function DashboardPage() {
     badgeVariant: 'ok' | 'warn' | 'error' | 'neutral'
     badgeLabel: string
     description: string
+    permission: PermissionKey
   }
 
-  const moduleStatus: ModuleStatus[] = data ? [
+  const moduleStatusAll: ModuleStatus[] = data ? [
     {
       id: 'temperatury', icon: Thermometer, title: 'Temperatury', href: '/temperatury', cta: 'Dodaj temperaturę',
       badgeVariant: data.totalDevices === 0 ? 'neutral' : data.tempAlarms > 0 ? 'error' : data.checkedDevices === data.totalDevices ? 'ok' : 'warn',
       badgeLabel: data.totalDevices === 0 ? 'Brak' : data.tempAlarms > 0 ? 'Alarm' : data.checkedDevices === data.totalDevices ? 'OK' : 'Braki',
       description: data.totalDevices === 0 ? 'Brak zarejestrowanych urządzeń' : `Sprawdzone ${data.checkedDevices}/${data.totalDevices} dziś`,
+      permission: 'temperatures',
     },
     {
       id: 'dostawy', icon: Truck, title: 'Dostawy', href: '/dostawy/nowa', cta: 'Dodaj dostawę',
       badgeVariant: data.deliveryCount > 0 ? 'ok' : 'neutral',
       badgeLabel: data.deliveryCount > 0 ? `${data.deliveryCount} dziś` : 'Brak',
       description: data.lastDelivery ? `Ostatnia: ${data.lastDelivery.supplier}` : 'Brak dostaw dzisiaj',
+      permission: 'deliveries',
     },
     {
       id: 'mycie', icon: Droplets, title: 'Mycie i dezynfekcja', href: '/mycie', cta: 'Dodaj mycie',
@@ -318,17 +331,25 @@ export default async function DashboardPage() {
       description: data.pendingCleaningTasks > 0
         ? `${data.pendingCleaningTasks} zadań do wykonania dziś`
         : data.lastCleaning ? `Ostatnie: ${data.lastCleaning.area}` : 'Brak wpisów dzisiaj',
+      permission: 'cleaning',
     },
   ] : []
+  const moduleStatus = moduleStatusAll.filter(m => permissions[m.permission])
 
-  const OTHER_MODULES: { href: string; label: string; icon: LucideIcon }[] = [
-    { href: '/niezgodnosci', label: 'Niezgodności', icon: AlertTriangle },
-    { href: '/szkolenia', label: 'Szkolenia', icon: GraduationCap },
-    { href: '/orzeczenia', label: 'Orzeczenia', icon: Stethoscope },
-    { href: '/raporty', label: 'Raporty PDF', icon: FileText },
-    { href: '/alergeny', label: 'Alergeny', icon: Apple },
-    { href: '/ddd', label: 'Kontrola DDD', icon: Bug },
+  const OTHER_MODULES_ALL: { href: string; label: string; icon: LucideIcon; permission: PermissionKey }[] = [
+    { href: '/niezgodnosci', label: 'Niezgodności', icon: AlertTriangle, permission: 'nonconformities' },
+    { href: '/szkolenia', label: 'Szkolenia', icon: GraduationCap, permission: 'training' },
+    { href: '/orzeczenia', label: 'Orzeczenia', icon: Stethoscope, permission: 'certificates' },
+    { href: '/raporty', label: 'Raporty PDF', icon: FileText, permission: 'reports' },
+    { href: '/alergeny', label: 'Alergeny', icon: Apple, permission: 'allergens' },
+    { href: '/ddd', label: 'Kontrola DDD', icon: Bug, permission: 'ddd' },
   ]
+  const OTHER_MODULES = OTHER_MODULES_ALL.filter(m => permissions[m.permission])
+
+  const visiblePriorities = priorities.filter(p => {
+    const key = PRIORITY_PERMISSIONS[p.href]
+    return !key || permissions[key]
+  })
 
   return (
     <div className="space-y-4">
@@ -351,9 +372,9 @@ export default async function DashboardPage() {
       {/* Priorytety na dziś */}
       <div className="card">
         <p className="font-bold text-gray-900 text-sm mb-1">Priorytety na dziś</p>
-        {priorities.length > 0 ? (
+        {visiblePriorities.length > 0 ? (
           <div className="divide-y divide-gray-50">
-            {priorities.map(p => (
+            {visiblePriorities.map(p => (
               <Link key={p.id} href={p.href} className="flex items-center gap-3 py-3 first:pt-2 last:pb-1 group">
                 <div className={cn('p-2 rounded-lg shrink-0', p.bgClass)}>
                   <p.icon size={16} className={p.iconClass} />
@@ -374,20 +395,22 @@ export default async function DashboardPage() {
       </div>
 
       {/* Szybkie akcje */}
-      <div className="card">
-        <p className="font-bold text-gray-900 text-sm mb-3">Szybkie akcje</p>
-        <div className="grid grid-cols-4 gap-2">
-          {QUICK_ACTIONS.map(({ href, label, icon: Icon }) => (
-            <Link key={href} href={href}
-              className="flex flex-col items-center gap-1.5 rounded-xl border border-gray-100 py-3 px-1 text-center hover:border-brand-navy/30 hover:bg-brand-navy/5 active:scale-[0.97] transition-all">
-              <div className="p-2 bg-brand-navy/10 rounded-lg">
-                <Icon size={16} className="text-brand-navy" />
-              </div>
-              <span className="text-[11px] font-semibold text-gray-700 leading-tight">{label}</span>
-            </Link>
-          ))}
+      {QUICK_ACTIONS.length > 0 && (
+        <div className="card">
+          <p className="font-bold text-gray-900 text-sm mb-3">Szybkie akcje</p>
+          <div className="grid grid-cols-4 gap-2">
+            {QUICK_ACTIONS.map(({ href, label, icon: Icon }) => (
+              <Link key={href} href={href}
+                className="flex flex-col items-center gap-1.5 rounded-xl border border-gray-100 py-3 px-1 text-center hover:border-brand-navy/30 hover:bg-brand-navy/5 active:scale-[0.97] transition-all">
+                <div className="p-2 bg-brand-navy/10 rounded-lg">
+                  <Icon size={16} className="text-brand-navy" />
+                </div>
+                <span className="text-[11px] font-semibold text-gray-700 leading-tight">{label}</span>
+              </Link>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Status modułów */}
       {moduleStatus.length > 0 && (
@@ -412,21 +435,23 @@ export default async function DashboardPage() {
       )}
 
       {/* Pozostałe moduły */}
-      <div className="card">
-        <p className="font-bold text-gray-900 text-sm mb-3">Pozostałe moduły</p>
-        <div className="grid grid-cols-2 gap-2">
-          {OTHER_MODULES.map(({ href, label, icon: Icon }) => (
-            <Link key={href} href={href}
-              className="flex items-center gap-2.5 p-3 rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors">
-              <div className="p-1.5 bg-brand-navy/10 rounded-lg shrink-0">
-                <Icon size={14} className="text-brand-navy" />
-              </div>
-              <span className="text-sm font-medium text-gray-700 truncate flex-1 min-w-0">{label}</span>
-              <ChevronRight size={14} className="text-gray-300 shrink-0" />
-            </Link>
-          ))}
+      {OTHER_MODULES.length > 0 && (
+        <div className="card">
+          <p className="font-bold text-gray-900 text-sm mb-3">Pozostałe moduły</p>
+          <div className="grid grid-cols-2 gap-2">
+            {OTHER_MODULES.map(({ href, label, icon: Icon }) => (
+              <Link key={href} href={href}
+                className="flex items-center gap-2.5 p-3 rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors">
+                <div className="p-1.5 bg-brand-navy/10 rounded-lg shrink-0">
+                  <Icon size={14} className="text-brand-navy" />
+                </div>
+                <span className="text-sm font-medium text-gray-700 truncate flex-1 min-w-0">{label}</span>
+                <ChevronRight size={14} className="text-gray-300 shrink-0" />
+              </Link>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
