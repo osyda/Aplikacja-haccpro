@@ -28,6 +28,13 @@ export function isTemperatureOk(temp: number, min: number, max: number) {
   return temp >= Math.min(min, max) && temp <= Math.max(min, max)
 }
 
+/** Combine street + building number + optional unit number into one address line, e.g. "Marszałkowska 10/5". */
+export function buildAddressLine(street: string, buildingNo: string, unitNo: string) {
+  const base = [street.trim(), buildingNo.trim()].filter(Boolean).join(' ')
+  const unit = unitNo.trim()
+  return unit ? `${base}/${unit}` : base
+}
+
 // The app's reference timezone (Polish locations) — used for "today" boundaries
 // so they line up with the user's wall-clock day regardless of the server's TZ.
 const APP_TIMEZONE = 'Europe/Warsaw'

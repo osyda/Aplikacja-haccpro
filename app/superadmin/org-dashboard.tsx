@@ -9,7 +9,7 @@ import {
   UserCircle, Crown, Shield, User, Trash2, Plus,
   Send,
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, buildAddressLine } from '@/lib/utils'
 
 export interface OrgRow {
   id: string
@@ -391,16 +391,35 @@ function OrgDetailModal({ org, onClose, onDeleted }: { org: OrgRow; onClose: () 
 }
 
 function AddClientModal({ onClose, onAdded }: { onClose: () => void; onAdded: (org: OrgRow) => void }) {
-  const [form, setForm] = useState({ orgName: '', ownerName: '', ownerEmail: '', plan: 'trial', trialDays: '14' })
+  const [form, setForm] = useState({
+    orgName: '', ownerName: '', ownerEmail: '', plan: 'trial', trialDays: '14',
+    nip: '',
+    addressStreet: '', addressBuildingNo: '', addressUnitNo: '', addressPostalCode: '', addressCity: '',
+    locationName: '',
+    locationDifferentAddress: false,
+    locationStreet: '', locationBuildingNo: '', locationUnitNo: '', locationPostalCode: '', locationCity: '',
+  })
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
 
-  function set(field: string, value: string) {
+  function set(field: string, value: string | boolean) {
     setForm(prev => ({ ...prev, [field]: value }))
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    const nip = form.nip.replace(/\D/g, '')
+    if (nip.length !== 10) {
+      toast.error('NIP musi składać się z 10 cyfr')
+      return
+    }
+
+    const locationAddress = form.locationDifferentAddress
+      ? buildAddressLine(form.locationStreet, form.locationBuildingNo, form.locationUnitNo)
+      : buildAddressLine(form.addressStreet, form.addressBuildingNo, form.addressUnitNo)
+    const locationCity = form.locationDifferentAddress ? form.locationCity : form.addressCity
+    const locationPostalCode = form.locationDifferentAddress ? form.locationPostalCode : form.addressPostalCode
+
     setSaving(true)
     try {
       const res = await fetch('/api/admin/orgs', {
@@ -412,6 +431,16 @@ function AddClientModal({ onClose, onAdded }: { onClose: () => void; onAdded: (o
           ownerEmail: form.ownerEmail,
           plan: form.plan,
           trialDays: parseInt(form.trialDays) || 14,
+          nip,
+          addressStreet: form.addressStreet.trim(),
+          addressBuildingNo: form.addressBuildingNo.trim(),
+          addressUnitNo: form.addressUnitNo.trim(),
+          addressPostalCode: form.addressPostalCode.trim(),
+          addressCity: form.addressCity.trim(),
+          locationName: form.locationName.trim(),
+          locationAddress,
+          locationCity: locationCity.trim(),
+          locationPostalCode: locationPostalCode.trim(),
         }),
       })
       const json = await res.json()
@@ -442,11 +471,15 @@ function AddClientModal({ onClose, onAdded }: { onClose: () => void; onAdded: (o
     }
   }
 
+  const inputCls = 'w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#22C55E]/20 focus:border-[#22C55E] transition-colors'
+  const labelCls = 'block text-xs font-semibold text-gray-700 mb-1.5'
+  const sectionCls = 'text-xs font-bold text-gray-400 uppercase tracking-wide pt-1'
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white z-10 flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
             <h2 className="font-bold text-gray-900">Dodaj nowego klienta</h2>
             <p className="text-xs text-gray-400 mt-0.5">Tworzy organizację i wysyła email z zaproszeniem</p>
@@ -491,6 +524,87 @@ function AddClientModal({ onClose, onAdded }: { onClose: () => void; onAdded: (o
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#22C55E]/20 focus:border-[#22C55E] transition-colors"
               />
             </div>
+
+            <div>
+              <label className={labelCls}>NIP *</label>
+              <input
+                type="text" inputMode="numeric" required
+                placeholder="np. 1234567890"
+                value={form.nip}
+                onChange={e => set('nip', e.target.value)}
+                className={inputCls}
+              />
+            </div>
+
+            <p className={sectionCls}>Adres siedziby</p>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="col-span-2">
+                <label className={labelCls}>Ulica *</label>
+                <input type="text" required placeholder="Marszałkowska" value={form.addressStreet} onChange={e => set('addressStreet', e.target.value)} className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Nr domu *</label>
+                <input type="text" required placeholder="10" value={form.addressBuildingNo} onChange={e => set('addressBuildingNo', e.target.value)} className={inputCls} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Nr lokalu</label>
+                <input type="text" placeholder="opcjonalnie" value={form.addressUnitNo} onChange={e => set('addressUnitNo', e.target.value)} className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Kod pocztowy *</label>
+                <input type="text" required placeholder="00-000" value={form.addressPostalCode} onChange={e => set('addressPostalCode', e.target.value)} className={inputCls} />
+              </div>
+            </div>
+            <div>
+              <label className={labelCls}>Miejscowość *</label>
+              <input type="text" required placeholder="Warszawa" value={form.addressCity} onChange={e => set('addressCity', e.target.value)} className={inputCls} />
+            </div>
+
+            <p className={sectionCls}>Lokalizacja</p>
+            <div>
+              <label className={labelCls}>Nazwa lokalizacji *</label>
+              <input type="text" required placeholder="np. Restauracja Mario — Centrum" value={form.locationName} onChange={e => set('locationName', e.target.value)} className={inputCls} />
+            </div>
+            <label className="flex items-center gap-2 text-sm text-gray-600">
+              <input
+                type="checkbox"
+                checked={form.locationDifferentAddress}
+                onChange={e => set('locationDifferentAddress', e.target.checked)}
+                className="rounded border-gray-300 text-[#22C55E] focus:ring-[#22C55E]"
+              />
+              Adres lokalizacji jest inny niż adres siedziby firmy
+            </label>
+
+            {form.locationDifferentAddress && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2">
+                    <label className={labelCls}>Ulica *</label>
+                    <input type="text" required placeholder="Marszałkowska" value={form.locationStreet} onChange={e => set('locationStreet', e.target.value)} className={inputCls} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Nr domu *</label>
+                    <input type="text" required placeholder="10" value={form.locationBuildingNo} onChange={e => set('locationBuildingNo', e.target.value)} className={inputCls} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelCls}>Nr lokalu</label>
+                    <input type="text" placeholder="opcjonalnie" value={form.locationUnitNo} onChange={e => set('locationUnitNo', e.target.value)} className={inputCls} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Kod pocztowy *</label>
+                    <input type="text" required placeholder="00-000" value={form.locationPostalCode} onChange={e => set('locationPostalCode', e.target.value)} className={inputCls} />
+                  </div>
+                </div>
+                <div>
+                  <label className={labelCls}>Miejscowość *</label>
+                  <input type="text" required placeholder="Warszawa" value={form.locationCity} onChange={e => set('locationCity', e.target.value)} className={inputCls} />
+                </div>
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1.5">Imię i nazwisko właściciela</label>

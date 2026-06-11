@@ -6,6 +6,12 @@ export interface Organization {
   id: string
   name: string
   plan: PlanType
+  nip: string
+  address_street: string
+  address_building_no: string
+  address_unit_no: string
+  address_postal_code: string
+  address_city: string
   created_at: string
 }
 
@@ -14,6 +20,7 @@ export interface Location {
   org_id: string
   name: string
   address: string
+  postal_code: string
   type: string
   city: string
   created_at: string
