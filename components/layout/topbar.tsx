@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import { MobileNav } from './mobile-nav'
 import { cn } from '@/lib/utils'
+import type { AppPermissions } from '@/lib/permissions'
 
 interface Location { id: string; name: string }
 interface Alert { id: string; description: string; source: string; created_at: string }
@@ -20,6 +21,7 @@ interface TopbarProps {
   isSuperadmin?: boolean
   alertCount?: number
   alerts?: Alert[]
+  permissions: AppPermissions
 }
 
 export function Topbar({
@@ -30,6 +32,7 @@ export function Topbar({
   isSuperadmin = false,
   alertCount = 0,
   alerts = [],
+  permissions,
 }: TopbarProps) {
   const router = useRouter()
   const supabase = createClient()
@@ -77,7 +80,7 @@ export function Topbar({
     <header className="h-14 bg-white border-b border-gray-100 flex items-center justify-between px-4 md:px-6 fixed top-0 right-0 left-0 lg:left-64 z-20">
       <div className="flex items-center gap-3">
         <div className="lg:hidden">
-          <MobileNav locationName={locationName} />
+          <MobileNav locationName={locationName} permissions={permissions} />
         </div>
 
         <div className="flex items-center gap-2 text-sm text-gray-600">

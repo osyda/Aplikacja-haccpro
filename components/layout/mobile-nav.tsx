@@ -8,33 +8,37 @@ import { cn } from '@/lib/utils'
 import {
   Thermometer, Truck, Droplets, GraduationCap, AlertTriangle,
   Bug, FileText, Clock, Settings, LayoutDashboard, Apple,
-  Menu, X, LogOut, Stethoscope, Recycle,
+  Menu, X, LogOut, Stethoscope, Recycle, FlaskConical, Trash2,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useMobileNav } from './mobile-nav-context'
+import type { AppPermissions } from '@/lib/permissions'
 
-const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/temperatury', label: 'Temperatury', icon: Thermometer },
-  { href: '/dostawy', label: 'Dostawy', icon: Truck },
-  { href: '/mycie', label: 'Mycie i dezynfekcja', icon: Droplets },
-  { href: '/olej', label: 'Odbiór oleju', icon: Recycle },
-  { href: '/szkolenia', label: 'Szkolenia', icon: GraduationCap },
-  { href: '/orzeczenia', label: 'Orzeczenia', icon: Stethoscope },
-  { href: '/niezgodnosci', label: 'Niezgodności', icon: AlertTriangle },
-  { href: '/ddd', label: 'Kontrola DDD', icon: Bug },
-  { href: '/alergeny', label: 'Alergeny', icon: Apple },
-  { href: '/raporty', label: 'Raporty PDF', icon: FileText },
-  { href: '/historia', label: 'Historia zmian', icon: Clock },
-  { href: '/ustawienia', label: 'Ustawienia', icon: Settings },
+const navItems: { href: string; label: string; icon: typeof LayoutDashboard; permission: keyof AppPermissions | null }[] = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: null },
+  { href: '/temperatury', label: 'Temperatury', icon: Thermometer, permission: 'temperatures' },
+  { href: '/dostawy', label: 'Dostawy', icon: Truck, permission: 'deliveries' },
+  { href: '/mycie', label: 'Mycie i dezynfekcja', icon: Droplets, permission: 'cleaning' },
+  { href: '/olej', label: 'Odbiór oleju', icon: Recycle, permission: 'oil_collection' },
+  { href: '/badania-wody', label: 'Badania wody', icon: FlaskConical, permission: 'water_tests' },
+  { href: '/odpady', label: 'Odpady', icon: Trash2, permission: 'waste' },
+  { href: '/szkolenia', label: 'Szkolenia', icon: GraduationCap, permission: 'training' },
+  { href: '/orzeczenia', label: 'Orzeczenia', icon: Stethoscope, permission: 'certificates' },
+  { href: '/niezgodnosci', label: 'Niezgodności', icon: AlertTriangle, permission: 'nonconformities' },
+  { href: '/ddd', label: 'Kontrola DDD', icon: Bug, permission: 'ddd' },
+  { href: '/alergeny', label: 'Alergeny', icon: Apple, permission: 'allergens' },
+  { href: '/raporty', label: 'Raporty PDF', icon: FileText, permission: 'reports' },
+  { href: '/historia', label: 'Historia zmian', icon: Clock, permission: 'history' },
+  { href: '/ustawienia', label: 'Ustawienia', icon: Settings, permission: 'settings' },
 ]
 
-export function MobileNav({ locationName }: { locationName?: string }) {
+export function MobileNav({ locationName, permissions }: { locationName?: string; permissions: AppPermissions }) {
   const { open, setOpen } = useMobileNav()
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
+  const visible = navItems.filter(item => item.permission === null || permissions[item.permission])
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -92,7 +96,7 @@ export function MobileNav({ locationName }: { locationName?: string }) {
               </div>
 
               <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-                {navItems.map((item) => {
+                {visible.map((item) => {
                   const Icon = item.icon
                   const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
                   return (

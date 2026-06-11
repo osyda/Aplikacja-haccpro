@@ -70,3 +70,15 @@ export function getTodayEnd() {
 export function getTodaySplit(hour: number) {
   return todayAt(hour, 0, 0, 0)
 }
+
+/** Today's date as YYYY-MM-DD, as seen in APP_TIMEZONE. */
+export function getTodayDateStr(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: APP_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+}
+
+/** Tomorrow's date as YYYY-MM-DD, as seen in APP_TIMEZONE. */
+export function getTomorrowDateStr(): string {
+  const d = new Date(`${getTodayDateStr()}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + 1)
+  return new Intl.DateTimeFormat('en-CA', { timeZone: APP_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d)
+}

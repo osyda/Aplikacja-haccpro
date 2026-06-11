@@ -38,6 +38,8 @@ const PERMISSION_GROUPS: {
     children: [{ label: 'Zarządzanie obszarami i środkami', key: 'cleaning_manage_areas' }],
   },
   { label: 'Odbiór oleju', key: 'oil_collection' },
+  { label: 'Badania wody', key: 'water_tests' },
+  { label: 'Odpady', key: 'waste' },
   { label: 'Niezgodności', key: 'nonconformities' },
   { label: 'Szkolenia', key: 'training' },
   { label: 'Orzeczenia lekarskie', key: 'certificates' },

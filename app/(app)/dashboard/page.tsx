@@ -2,15 +2,18 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import {
   Thermometer, Truck, Droplets, AlertTriangle, ChevronRight, CheckCircle2,
-  GraduationCap, Stethoscope, FileText, Apple, Bug, Sun, Moon,
+  GraduationCap, Stethoscope, FileText, Apple, Bug, Sun, Moon, FlaskConical, Trash2,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { getTodayStart, getTodayEnd, getTodaySplit, isTemperatureOk, cn } from '@/lib/utils'
+import { getTodayStart, getTodayEnd, getTodaySplit, getTomorrowDateStr, isTemperatureOk, cn } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/page-header'
 import { Badge } from '@/components/ui/badge'
+import { AlertBox } from '@/components/ui/alert-box'
 import { GettingStarted, type OnboardingStep } from '@/components/onboarding/getting-started'
 import { getCurrentProfile, getCurrentPermissions } from '@/lib/get-profile'
 import type { PermissionKey } from '@/lib/permissions'
+import { scheduledItemsForDate } from '@/lib/waste-schedule'
+import type { WasteScheduleItem } from '@/lib/waste-schedule'
 
 // Maps dashboard "Priorytety na dziś" links to the permission required to see them
 const PRIORITY_PERMISSIONS: Record<string, PermissionKey> = {
@@ -25,7 +28,7 @@ async function getDashboardData(locationId: string) {
   const todayStart = getTodayStart()
   const todayEnd = getTodayEnd()
 
-  const [allTempLogsRes, deliveryLogs, cleaningLogs, nonconformities, devicesRes, cleaningTasksRes, completedTaskIdsRes, locationRes] = await Promise.all([
+  const [allTempLogsRes, deliveryLogs, cleaningLogs, nonconformities, devicesRes, cleaningTasksRes, completedTaskIdsRes, locationRes, wasteScheduleRes] = await Promise.all([
     // fetch recent logs (not just today) to determine current alarm status per device
     supabase.from('temperature_logs').select('*').eq('location_id', locationId)
       .order('measured_at', { ascending: false }).limit(300),
@@ -36,6 +39,7 @@ async function getDashboardData(locationId: string) {
     supabase.from('cleaning_tasks').select('id,frequency,day_of_week,day_of_month').eq('location_id', locationId).eq('is_active', true),
     supabase.from('cleaning_logs').select('cleaning_task_id').eq('location_id', locationId).gte('cleaned_at', todayStart).not('cleaning_task_id', 'is', null),
     supabase.from('locations').select('temp_checks_per_day, temp_check_split_hour').eq('id', locationId).single(),
+    supabase.from('waste_schedule_items').select('id,waste_type,frequency,day_of_week,day_of_month,specific_date,anchor_date').eq('location_id', locationId),
   ])
 
   const allTempLogs = allTempLogsRes.data ?? []
@@ -101,6 +105,10 @@ async function getDashboardData(locationId: string) {
     if (due) pendingCleaningTasks++
   }
 
+  // Waste pickups scheduled for tomorrow — shown as an all-day reminder on the dashboard
+  const tomorrowWasteItems = scheduledItemsForDate((wasteScheduleRes.data ?? []) as WasteScheduleItem[], getTomorrowDateStr())
+  const tomorrowWasteTypes = Array.from(new Set(tomorrowWasteItems.map(i => i.waste_type)))
+
   return {
     totalDevices,
     checkedDevices,
@@ -119,6 +127,7 @@ async function getDashboardData(locationId: string) {
     openNonconformities: nonconformities.data?.length ?? 0,
     hasRegisteredDevices: (devicesRes.data ?? []).length > 0,
     hasTemperatureLog: allTempLogs.length > 0,
+    tomorrowWasteTypes,
   }
 }
 
@@ -343,6 +352,8 @@ export default async function DashboardPage() {
     { href: '/raporty', label: 'Raporty PDF', icon: FileText, permission: 'reports' },
     { href: '/alergeny', label: 'Alergeny', icon: Apple, permission: 'allergens' },
     { href: '/ddd', label: 'Kontrola DDD', icon: Bug, permission: 'ddd' },
+    { href: '/badania-wody', label: 'Badania wody', icon: FlaskConical, permission: 'water_tests' },
+    { href: '/odpady', label: 'Odpady', icon: Trash2, permission: 'waste' },
   ]
   const OTHER_MODULES = OTHER_MODULES_ALL.filter(m => permissions[m.permission])
 
@@ -393,6 +404,16 @@ export default async function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Jutro odbiór odpadów */}
+      {permissions.waste && data && data.tomorrowWasteTypes.length > 0 && (
+        <AlertBox
+          variant="info"
+          title="Jutro odbierają odpady"
+          description={data.tomorrowWasteTypes.join(', ')}
+          action={<Link href="/odpady" className="text-xs font-semibold text-brand-navy hover:underline whitespace-nowrap">Harmonogram →</Link>}
+        />
+      )}
 
       {/* Szybkie akcje */}
       {QUICK_ACTIONS.length > 0 && (

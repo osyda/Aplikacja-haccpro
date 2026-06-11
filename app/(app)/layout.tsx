@@ -73,6 +73,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           isSuperadmin={isSuperadmin}
           alertCount={openNonconformities ?? 0}
           alerts={recentAlerts ?? []}
+          permissions={permissions}
         />
         <main className="lg:ml-64 pt-14 pb-20 lg:pb-0 min-h-screen">
           <div className="p-4 md:p-6 max-w-5xl">
