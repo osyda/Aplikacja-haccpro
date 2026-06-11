@@ -1,6 +1,10 @@
+import Link from 'next/link'
+import { MapPin } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { getTodayStart, getTodaySplit, isTemperatureOk } from '@/lib/utils'
 import { resolvePermissions } from '@/lib/permissions'
+import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
 import { TemperatureBoard } from './temperature-board'
 import type { AppPermissions } from '@/lib/permissions'
 
@@ -25,6 +29,21 @@ export default async function TemperaturyPage() {
     .from('profiles').select('location_id, role, permissions').eq('id', user!.id).single()
   const locationId = profile?.location_id ?? ''
   const permissions = resolvePermissions(profile?.role, profile?.permissions as Partial<AppPermissions> | null)
+
+  if (!locationId) {
+    return (
+      <div className="space-y-5">
+        <PageHeader title="Temperatury" />
+        <EmptyState
+          icon={MapPin}
+          title="Najpierw skonfiguruj swój lokal"
+          description="Aby rejestrować temperatury urządzeń, dodaj lokal w ustawieniach."
+          action={<Link href="/ustawienia/lokale" className="btn-primary">Dodaj lokal</Link>}
+        />
+      </div>
+    )
+  }
+
   const todayStart = getTodayStart()
 
   const [devicesRes, logsRes, locationRes] = await Promise.all([
