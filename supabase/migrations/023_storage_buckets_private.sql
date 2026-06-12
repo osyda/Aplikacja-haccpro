@@ -1,0 +1,22 @@
+-- ============================================================
+-- Make delivery-photos, reports and documents buckets private.
+--
+-- Previously these buckets were public, so anyone with a stored
+-- getPublicUrl() link (e.g. a leaked report URL, or a URL copied
+-- from the browser network tab) could read the file directly via
+-- /storage/v1/object/public/{bucket}/{path} — bypassing RLS entirely.
+--
+-- Migration 022 already scoped select/insert on storage.objects to
+-- the caller's own organisation. The app now resolves stored file
+-- references to short-lived signed URLs (lib/storage.ts,
+-- createSignedUrl/createSignedUrls) at render time, which works on
+-- both public and private buckets and is governed by the RLS
+-- policies from 022.
+--
+-- IMPORTANT — apply this AFTER the corresponding code change
+-- (switching renders to signed URLs) has been deployed and verified.
+-- Any old, previously-shared getPublicUrl() links will stop working
+-- once this runs.
+-- ============================================================
+
+update storage.buckets set public = false where id in ('delivery-photos', 'reports', 'documents');

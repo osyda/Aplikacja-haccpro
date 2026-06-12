@@ -7,6 +7,7 @@ import {
   AlertCircle, Trash2, CheckCircle2, Circle, History,
 } from 'lucide-react'
 import { formatDateTime, getTodayStart } from '@/lib/utils'
+import { buildSignedUrlMap } from '@/lib/storage'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/page-header'
@@ -240,7 +241,9 @@ export default function MyCiePage() {
       supabase.from('medical_records').select('person_name').eq('location_id', locationId).order('person_name'),
     ])
 
-    const rows: Log[] = logsRes.data ?? []
+    const rawLogs: Log[] = logsRes.data ?? []
+    const signedMap = await buildSignedUrlMap(supabase, 'documents', rawLogs.map(r => r.doc_url))
+    const rows = rawLogs.map(r => ({ ...r, doc_url: r.doc_url ? signedMap.get(r.doc_url) ?? r.doc_url : null }))
     setLogs(rows)
     setTasks(tasksRes.data ?? [])
     setCustomAreas(locRes.data?.cleaning_areas ?? [])
@@ -465,6 +468,8 @@ export default function MyCiePage() {
     const { data } = await query
     let result: Log[] = data ?? []
     if (histDept !== 'all') result = result.filter(l => deriveDept(l.area) === histDept)
+    const signedMap = await buildSignedUrlMap(supabase, 'documents', result.map(r => r.doc_url))
+    result = result.map(r => ({ ...r, doc_url: r.doc_url ? signedMap.get(r.doc_url) ?? r.doc_url : null }))
     setHistLogs(result)
     setHistLoading(false)
   }

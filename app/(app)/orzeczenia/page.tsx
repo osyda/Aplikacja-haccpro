@@ -8,6 +8,7 @@ import {
   Stethoscope, AlertTriangle, Paperclip, X, Search, Trash2,
 } from 'lucide-react'
 import { formatDate, getDaysUntil } from '@/lib/utils'
+import { buildSignedUrlMap } from '@/lib/storage'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/page-header'
@@ -62,7 +63,9 @@ export default function OrzeczenicaPage() {
     const { locationId, role } = await getCtx()
     setCanDelete(role === 'owner')
     const { data } = await supabase.from('medical_records').select('*').eq('location_id', locationId).order('valid_until')
-    setRecords(data ?? [])
+    const rows: MedRecord[] = data ?? []
+    const signedMap = await buildSignedUrlMap(supabase, 'documents', rows.map(r => r.doc_url))
+    setRecords(rows.map(r => ({ ...r, doc_url: r.doc_url ? signedMap.get(r.doc_url) ?? r.doc_url : null })))
   }
 
   async function handleDelete(id: string) {

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { cn, formatDate, formatDateTime, getTodayDateStr } from '@/lib/utils'
+import { buildSignedUrlMap } from '@/lib/storage'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { CompactRecordCard } from '@/components/ui/compact-record-card'
@@ -90,7 +91,14 @@ export default function OlejPage() {
       supabase.from('medical_records').select('person_name').eq('location_id', locationId).order('person_name'),
     ])
 
-    const rows: OilLog[] = logsRes.data ?? []
+    const rawLogs: OilLog[] = logsRes.data ?? []
+    const docRefs = rawLogs.flatMap(r => [r.doc_url, ...(r.doc_urls ?? [])])
+    const signedMap = await buildSignedUrlMap(supabase, 'delivery-photos', docRefs)
+    const rows = rawLogs.map(r => ({
+      ...r,
+      doc_url: r.doc_url ? signedMap.get(r.doc_url) ?? r.doc_url : null,
+      doc_urls: r.doc_urls ? r.doc_urls.map(u => signedMap.get(u) ?? u) : null,
+    }))
     setLogs(rows)
     setCompanyName(locRes.data?.oil_company_name ?? '')
     setCompanyPhone(locRes.data?.oil_company_phone ?? '')

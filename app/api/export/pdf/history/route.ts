@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { buildSignedUrlMap } from '@/lib/storage'
 
 export async function GET() {
   const supabase = createClient()
@@ -21,13 +22,16 @@ export async function GET() {
     .order('generated_at', { ascending: false })
     .limit(20)
 
-  const items = (reports ?? []).map(r => ({
+  const rows = reports ?? []
+  const signedMap = await buildSignedUrlMap(supabase, 'reports', rows.map(r => r.file_path))
+
+  const items = rows.map(r => ({
     id: r.id,
     modules: r.modules,
     period_month: r.period_month,
     period_year: r.period_year,
     generated_at: r.generated_at,
-    url: supabase.storage.from('reports').getPublicUrl(r.file_path).data.publicUrl,
+    url: signedMap.get(r.file_path) ?? '',
   }))
 
   return NextResponse.json({ reports: items })

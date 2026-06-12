@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { cn, formatDate, formatDateTime, getTodayDateStr } from '@/lib/utils'
+import { buildSignedUrlMap } from '@/lib/storage'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SectionHeader } from '@/components/ui/section-header'
@@ -108,7 +109,13 @@ export default function BadaniaWodyPage() {
       .order('tested_at', { ascending: false }).limit(100)
 
     const list: WaterTestRow[] = data ?? []
-    setRows(list)
+    const docRefs = list.flatMap(r => [r.doc_url, ...(r.doc_urls ?? [])])
+    const signedMap = await buildSignedUrlMap(supabase, 'delivery-photos', docRefs)
+    setRows(list.map(r => ({
+      ...r,
+      doc_url: r.doc_url ? signedMap.get(r.doc_url) ?? r.doc_url : null,
+      doc_urls: r.doc_urls ? r.doc_urls.map(u => signedMap.get(u) ?? u) : null,
+    })))
 
     const comps = Array.from(new Set(list.map(r => r.company).filter(Boolean)))
     setCompanies(comps)

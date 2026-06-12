@@ -8,6 +8,7 @@ import {
   Bug, X, Paperclip, Search, CheckCircle2,
 } from 'lucide-react'
 import { formatDateTime, cn, getTodayDateStr } from '@/lib/utils'
+import { buildSignedUrlMap } from '@/lib/storage'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SectionHeader } from '@/components/ui/section-header'
@@ -67,7 +68,14 @@ export default function DddPage() {
     const { data: { user } } = await supabase.auth.getUser()
     const { data: profile } = await supabase.from('profiles').select('location_id').eq('id', user!.id).single()
     const { data } = await supabase.from('ddd_logs').select('*').eq('location_id', profile?.location_id ?? '').order('inspected_at', { ascending: false }).limit(30)
-    setLogs(data ?? [])
+    const rows: Log[] = data ?? []
+    const docRefs = rows.flatMap(r => [r.doc_url, r.invoice_url])
+    const signedMap = await buildSignedUrlMap(supabase, 'documents', docRefs)
+    setLogs(rows.map(r => ({
+      ...r,
+      doc_url: r.doc_url ? signedMap.get(r.doc_url) ?? r.doc_url : null,
+      invoice_url: r.invoice_url ? signedMap.get(r.invoice_url) ?? r.invoice_url : null,
+    })))
   }
 
   useEffect(() => { fetchLogs() }, [])

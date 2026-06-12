@@ -3,7 +3,8 @@ import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { isOwnerRole } from '@/lib/permissions'
-import { DeliveryList } from './delivery-list'
+import { buildSignedUrlMap } from '@/lib/storage'
+import { DeliveryList, type DeliveryLog } from './delivery-list'
 
 export default async function DostawyPage() {
   const supabase = createClient()
@@ -31,7 +32,14 @@ export default async function DostawyPage() {
       .eq('location_id', locationId),
   ])
 
-  const logs = logsRes.data ?? []
+  const rawLogs: DeliveryLog[] = logsRes.data ?? []
+  const photoRefs = rawLogs.flatMap((l) => [l.photo_url, ...(l.photo_urls ?? [])])
+  const signedMap = await buildSignedUrlMap(supabase, 'delivery-photos', photoRefs)
+  const logs = rawLogs.map((l) => ({
+    ...l,
+    photo_url: l.photo_url ? signedMap.get(l.photo_url) ?? l.photo_url : null,
+    photo_urls: l.photo_urls ? l.photo_urls.map((u) => signedMap.get(u) ?? u) : null,
+  }))
   const suppMap = Object.fromEntries((suppliersRes.data ?? []).map((s: { alias: string; full_name: string | null; nip: string | null }) => [s.alias, s]))
 
   const authorIds = Array.from(new Set(logs.map((l: { recorded_by: string | null }) => l.recorded_by).filter(Boolean) as string[]))

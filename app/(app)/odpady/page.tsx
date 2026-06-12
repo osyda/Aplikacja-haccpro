@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { cn, formatDate, formatDateTime, getTodayDateStr, addDaysToDateStr } from '@/lib/utils'
+import { buildSignedUrlMap } from '@/lib/storage'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SectionHeader } from '@/components/ui/section-header'
@@ -135,7 +136,13 @@ export default function OdpadyPage() {
     ])
 
     const contractRows: WasteContractRow[] = contractsRes.data ?? []
-    setContracts(contractRows)
+    const docRefs = contractRows.flatMap(r => [r.doc_url, ...(r.doc_urls ?? [])])
+    const signedMap = await buildSignedUrlMap(supabase, 'delivery-photos', docRefs)
+    setContracts(contractRows.map(r => ({
+      ...r,
+      doc_url: r.doc_url ? signedMap.get(r.doc_url) ?? r.doc_url : null,
+      doc_urls: r.doc_urls ? r.doc_urls.map(u => signedMap.get(u) ?? u) : null,
+    })))
     setScheduleItems((scheduleRes.data ?? []) as WasteScheduleItem[])
 
     const ids = Array.from(new Set(contractRows.map(r => r.recorded_by).filter(Boolean) as string[]))
