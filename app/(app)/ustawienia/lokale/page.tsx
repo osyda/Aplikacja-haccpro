@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { ChevronLeft, MapPin, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { isOwnerRole } from '@/lib/permissions'
+import { PageSkeleton } from '@/components/ui/page-skeleton'
 import type { Location } from '@/types/database'
 
 const LOCATION_TYPES = ['Restauracja', 'Bar', 'Kawiarnia', 'Pizzeria', 'Fast-food', 'Stołówka', 'Catering', 'Sklep spożywczy', 'Inny']
@@ -20,6 +21,7 @@ export default function LocalePage() {
   const [success, setSuccess] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [isOwner, setIsOwner] = useState(false)
+  const [pageLoading, setPageLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
@@ -34,6 +36,7 @@ export default function LocalePage() {
     setIsOwner(true)
     const { data } = await supabase.from('locations').select('*').eq('org_id', profile?.org_id ?? '')
     setLocations(data ?? [])
+    setPageLoading(false)
   }
 
   useEffect(() => { fetchLocations() }, [])
@@ -84,6 +87,7 @@ export default function LocalePage() {
     setTimeout(() => { setSuccess(false); setShowForm(false) }, 2000)
   }
 
+  if (pageLoading) return <PageSkeleton />
   if (!isOwner) return null
 
   return (
