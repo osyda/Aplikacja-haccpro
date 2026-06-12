@@ -25,15 +25,29 @@ export async function POST(req: NextRequest) {
       permissions: AppPermissions | null
     }
 
+    const VALID_ROLES = ['owner', 'manager', 'staff']
+    if (!VALID_ROLES.includes(body.role)) {
+      return NextResponse.json({ error: 'Nieprawidłowa rola' }, { status: 400 })
+    }
+
+    if (body.targetUserId === user.id) {
+      return NextResponse.json({ error: 'Nie możesz zmienić własnej roli' }, { status: 403 })
+    }
+
     // Make sure target is in the same org
     const { data: targetProfile } = await supabase
       .from('profiles')
-      .select('org_id')
+      .select('org_id, role')
       .eq('id', body.targetUserId)
       .single()
 
     if (!targetProfile || targetProfile.org_id !== callerProfile.org_id) {
       return NextResponse.json({ error: 'Użytkownik nie należy do tej organizacji' }, { status: 403 })
+    }
+
+    // Only an existing owner can grant or revoke the owner role
+    if ((body.role === 'owner' || targetProfile.role === 'owner') && callerProfile.role !== 'owner') {
+      return NextResponse.json({ error: 'Tylko właściciel może zarządzać rolą właściciela' }, { status: 403 })
     }
 
     // Use SECURITY DEFINER RPC to bypass RLS (PostgREST admin client has issues)

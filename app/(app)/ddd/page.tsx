@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import {
   Bug, X, Paperclip, Search, CheckCircle2,
 } from 'lucide-react'
-import { formatDateTime, cn } from '@/lib/utils'
+import { formatDateTime, cn, getTodayDateStr } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SectionHeader } from '@/components/ui/section-header'
@@ -19,12 +19,8 @@ import type { DddScanResult } from '@/app/api/scan-ddd-protocol/route'
 const AREAS = ['Kuchnia', 'Magazyn', 'Sala', 'Toalety', 'Zaplecze', 'Zewnętrze']
 const RESULTS = ['Brak szkodników', 'Ślady aktywności', 'Znaleziono szkodniki', 'Pułapki puste', 'Pułapki z połowem']
 
-function todayStr(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-
 function emptyForm() {
-  return { areas: [] as string[], result: '', action_taken: '', inspector: '', inspected_at: todayStr(), notes: '' }
+  return { areas: [] as string[], result: '', action_taken: '', inspector: '', inspected_at: getTodayDateStr(), notes: '' }
 }
 
 interface Log {
@@ -134,6 +130,7 @@ export default function DddPage() {
     e.preventDefault()
     if (form.areas.length === 0) { toast.error('Wybierz co najmniej jeden obszar kontroli'); return }
     if (!form.result) { toast.error('Wybierz wynik kontroli'); return }
+    if (!form.inspector.trim()) { toast.error('Wpisz nazwę firmy/inspektora'); return }
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     const { data: profile } = await supabase.from('profiles').select('location_id').eq('id', user!.id).single()

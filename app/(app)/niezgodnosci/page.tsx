@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/badge'
 import { PageHeader } from '@/components/ui/page-header'
@@ -34,13 +35,14 @@ function ResolveForm({ item, onResolved }: { item: Nonconformity; onResolved: ()
   async function handleResolve() {
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
-    await supabase.from('nonconformities').update({
+    const { error } = await supabase.from('nonconformities').update({
       status: 'resolved',
       resolve_comment: comment.trim() || null,
       resolved_by: user!.id,
       resolved_at: new Date().toISOString(),
     }).eq('id', item.id)
     setSaving(false)
+    if (error) { toast.error('Błąd zapisu: ' + error.message); return }
     onResolved()
   }
 
@@ -177,11 +179,10 @@ export default function NiezgodnosciPage() {
       reported_by: user!.id,
     })
     setLoading(false)
-    if (!error) {
-      setForm({ description: '', corrective_action: '' })
-      setExpandedForm(false)
-      fetchItems()
-    }
+    if (error) { toast.error('Błąd zapisu: ' + error.message); return }
+    setForm({ description: '', corrective_action: '' })
+    setExpandedForm(false)
+    fetchItems()
   }
 
   const open = items.filter(i => i.status === 'open')

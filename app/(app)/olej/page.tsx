@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { cn, formatDate, formatDateTime } from '@/lib/utils'
+import { cn, formatDate, formatDateTime, getTodayDateStr } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { CompactRecordCard } from '@/components/ui/compact-record-card'
@@ -28,12 +28,8 @@ interface OilLog {
   recorded_by: string | null
 }
 
-function todayStr(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-
 function emptyForm() {
-  return { company: '', quantity: '', collected_at: todayStr(), notes: '' }
+  return { company: '', quantity: '', collected_at: getTodayDateStr(), notes: '' }
 }
 
 function logDocs(log: OilLog): string[] {

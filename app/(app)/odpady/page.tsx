@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { cn, formatDate, formatDateTime } from '@/lib/utils'
+import { cn, formatDate, formatDateTime, getTodayDateStr, addDaysToDateStr } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SectionHeader } from '@/components/ui/section-header'
@@ -32,12 +32,8 @@ interface WasteContractRow {
   created_at: string
 }
 
-function todayStr(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-
 function emptyContractForm() {
-  return { company: '', signed_at: todayStr(), notes: '' }
+  return { company: '', signed_at: getTodayDateStr(), notes: '' }
 }
 
 function emptyItemForm() {
@@ -46,8 +42,8 @@ function emptyItemForm() {
     frequency: 'weekly' as WasteFrequency,
     days_of_week: [0] as number[],
     day_of_month: 1,
-    specific_date: todayStr(),
-    anchor_date: todayStr(),
+    specific_date: getTodayDateStr(),
+    anchor_date: getTodayDateStr(),
   }
 }
 
@@ -273,6 +269,9 @@ export default function OdpadyPage() {
     if (!itemForm.waste_type.trim()) { toast.error('Wpisz rodzaj odpadu.'); return }
     const isWeekly = itemForm.frequency === 'weekly' || itemForm.frequency === 'biweekly'
     if (isWeekly && itemForm.days_of_week.length === 0) { toast.error('Wybierz przynajmniej jeden dzień tygodnia.'); return }
+    if (itemForm.frequency === 'monthly' && (itemForm.day_of_month < 1 || itemForm.day_of_month > 31)) {
+      toast.error('Dzień miesiąca musi być w zakresie 1-31.'); return
+    }
 
     const wasteType = itemForm.waste_type.trim()
     const rows: {
@@ -339,10 +338,9 @@ export default function OdpadyPage() {
   // ── Upcoming pickups (next 7 days) ──
   const upcoming = useMemo(() => {
     const days: { dateStr: string; label: string; items: WasteScheduleItem[] }[] = []
+    const todayStr = getTodayDateStr()
     for (let i = 0; i < 7; i++) {
-      const d = new Date()
-      d.setDate(d.getDate() + i)
-      const dateStr = d.toISOString().slice(0, 10)
+      const dateStr = addDaysToDateStr(todayStr, i)
       const items = scheduledItemsForDate(scheduleItems, dateStr)
       if (items.length === 0) continue
       const label = i === 0 ? 'Dziś' : i === 1 ? 'Jutro' : formatDate(dateStr, { weekday: 'long', day: '2-digit', month: '2-digit' })
