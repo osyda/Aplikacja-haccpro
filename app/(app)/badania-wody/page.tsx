@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { cn, formatDate, formatDateTime } from '@/lib/utils'
+import { cn, formatDate, formatDateTime, getTodayDateStr } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SectionHeader } from '@/components/ui/section-header'
@@ -26,12 +26,8 @@ interface WaterTestRow {
   created_at: string
 }
 
-function todayStr(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-
 function emptyForm() {
-  return { company: '', tested_at: todayStr(), result: '', notes: '' }
+  return { company: '', tested_at: getTodayDateStr(), result: '', notes: '' }
 }
 
 function rowDocs(row: WaterTestRow): string[] {

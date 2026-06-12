@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { GraduationCap, Plus, ChevronDown, ChevronUp, Users, AlertTriangle, X } from 'lucide-react'
-import { formatDate } from '@/lib/utils'
+import { formatDate, getDaysUntil } from '@/lib/utils'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/page-header'
@@ -26,13 +26,8 @@ interface Log {
   notes: string | null
 }
 
-function getDaysLeft(dateStr: string | null): number | null {
-  if (!dateStr) return null
-  return Math.ceil((new Date(dateStr).getTime() - new Date().setHours(0, 0, 0, 0)) / (1000 * 60 * 60 * 24))
-}
-
 function ExpiryBadge({ validUntil }: { validUntil: string | null }) {
-  const days = getDaysLeft(validUntil)
+  const days = validUntil ? getDaysUntil(validUntil) : null
   if (days === null) return null
   if (days < 0) return <span className="text-xs font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded-full">Wygasło {Math.abs(days)}d temu</span>
   if (days <= 30) return <span className="text-xs font-medium text-orange-700 bg-orange-100 px-2 py-0.5 rounded-full">Wygasa za {days}d</span>
@@ -101,7 +96,7 @@ export default function SzkoleniaPage() {
     fetchLogs()
   }
 
-  const alerts = logs.filter((l) => { const d = getDaysLeft(l.valid_until); return d !== null && d <= 30 })
+  const alerts = logs.filter((l) => l.valid_until !== null && getDaysUntil(l.valid_until) <= 30)
 
   return (
     <div className="space-y-6">

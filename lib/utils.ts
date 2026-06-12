@@ -87,3 +87,10 @@ export function addDaysToDateStr(dateStr: string, days: number): string {
 export function getTomorrowDateStr(): string {
   return addDaysToDateStr(getTodayDateStr(), 1)
 }
+
+/** Whole days from "today" (APP_TIMEZONE) until the given YYYY-MM-DD date — negative if in the past. */
+export function getDaysUntil(dateStr: string): number {
+  const today = new Date(`${getTodayDateStr()}T00:00:00Z`)
+  const target = new Date(`${dateStr}T00:00:00Z`)
+  return Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+}

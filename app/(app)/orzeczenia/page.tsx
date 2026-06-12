@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import {
   Stethoscope, AlertTriangle, Paperclip, X, Search, Trash2,
 } from 'lucide-react'
-import { formatDate } from '@/lib/utils'
+import { formatDate, getDaysUntil } from '@/lib/utils'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/page-header'
@@ -27,12 +27,8 @@ interface MedRecord {
   doc_url: string | null
 }
 
-function getDaysLeft(dateStr: string): number {
-  return Math.ceil((new Date(dateStr).getTime() - new Date().setHours(0, 0, 0, 0)) / (1000 * 60 * 60 * 24))
-}
-
 function StatusBadge({ validUntil }: { validUntil: string }) {
-  const days = getDaysLeft(validUntil)
+  const days = getDaysUntil(validUntil)
   if (days < 0) return <span className="text-xs font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded-full">Wygasło {Math.abs(days)}d temu</span>
   if (days <= 30) return <span className="text-xs font-medium text-orange-700 bg-orange-100 px-2 py-0.5 rounded-full">Wygasa za {days}d</span>
   return <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">Ważne {days}d</span>
@@ -146,7 +142,7 @@ export default function OrzeczenicaPage() {
     fetchRecords()
   }
 
-  const urgent = records.filter((r) => getDaysLeft(r.valid_until) <= 30)
+  const urgent = records.filter((r) => getDaysUntil(r.valid_until) <= 30)
 
   return (
     <div className="space-y-6">

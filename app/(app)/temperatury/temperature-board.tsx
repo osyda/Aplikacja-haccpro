@@ -139,7 +139,7 @@ function QuickEntryModal({ device, locationId, checksPerDay, pmDue, onClose, onS
     if (error) { setSaving(false); toast.error('Błąd zapisu: ' + error.message); return }
 
     if (outOfRange) {
-      await supabase.from('nonconformities').insert({
+      const { error: ncError } = await supabase.from('nonconformities').insert({
         location_id: locationId,
         source: 'temperature_alarm',
         description: `Alarm temperatury: ${device.name} — zmierzono ${tempNum}°C (norma ${device.min_ok}–${device.max_ok}°C)`,
@@ -147,6 +147,7 @@ function QuickEntryModal({ device, locationId, checksPerDay, pmDue, onClose, onS
         status: 'open',
         reported_by: user!.id,
       })
+      if (ncError) toast.error('Temperatura zapisana, ale nie udało się zgłosić niezgodności: ' + ncError.message)
       fetch('/api/push/notify-alarm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -422,7 +423,8 @@ function DeviceManager({ locationId, onChanged }: { locationId: string; onChange
   }
 
   async function removeDevice(id: string) {
-    await supabase.from('location_devices').delete().eq('id', id)
+    const { error } = await supabase.from('location_devices').delete().eq('id', id)
+    if (error) { toast.error('Błąd usuwania: ' + error.message); return }
     if (editingId === id) setEditingId(null)
     load()
     onChanged()

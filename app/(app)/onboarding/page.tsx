@@ -56,7 +56,11 @@ export default function OnboardingPage() {
       return
     }
 
-    await supabase.from('profiles').update({ location_id: loc.id }).eq('id', user.id)
+    const { error: assignError } = await supabase.from('profiles').update({ location_id: loc.id }).eq('id', user.id)
+    if (assignError) {
+      toast.error('Lokal utworzony, ale nie udało się go przypisać: ' + assignError.message)
+      return
+    }
 
     setStep(2)
   }
