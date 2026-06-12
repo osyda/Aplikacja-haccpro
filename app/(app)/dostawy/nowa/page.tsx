@@ -8,6 +8,8 @@ import { ChevronLeft, Paperclip, X, Thermometer, Building2, Plus, CheckCircle2, 
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { isOwnerRole } from '@/lib/permissions'
+import { SignedTempInput } from '@/components/ui/signed-temp-input'
+import { chilledMaxAllowed, isChilledTempOk, isFrozenTempOk } from '@/lib/delivery-temp'
 import type { ScanResult } from '@/app/api/scan-invoice/route'
 
 const DELIVERY_CATEGORIES = [
@@ -542,8 +544,15 @@ export default function NowaDostawaPage() {
                 placeholder="np. 4.2"
                 value={form.temp_at_delivery} onChange={e => setForm(p => ({ ...p, temp_at_delivery: e.target.value }))} />
               <p className="text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded-lg px-3 py-1.5 mt-2">
-                🌡 Produkty chłodzone: wymagana temperatura 0–8°C
+                🌡 Produkty chłodzone: wymagana temperatura 0–{chilledMaxAllowed(chilledCats.map(c => c.id))}°C
               </p>
+              {/* chilled out-of-range warning */}
+              {form.temp_at_delivery && !isChilledTempOk(parseFloat(form.temp_at_delivery), chilledCats.map(c => c.id)) && (
+                <div className="flex items-center gap-2 mt-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  <AlertCircle size={13} />
+                  Temperatura poza normą — dostawa wymaga uwagi
+                </div>
+              )}
             </div>
           )}
 
@@ -553,19 +562,21 @@ export default function NowaDostawaPage() {
                 {needsTwoTempFields ? 'Temperatura — mrożonki' : 'Temperatura przy odbiorze (°C)'}
                 {' '}<span className="text-red-500">*</span>
               </label>
-              <input type="number" step="0.1" inputMode="decimal" className="input font-mono text-xl text-center py-3 h-14"
-                placeholder="np. −18.5"
+              <SignedTempInput
                 value={needsTwoTempFields ? form.temp_frozen : form.temp_at_delivery}
-                onChange={e => setForm(p => needsTwoTempFields
-                  ? { ...p, temp_frozen: e.target.value }
-                  : { ...p, temp_at_delivery: e.target.value })} />
+                onChange={v => setForm(p => needsTwoTempFields
+                  ? { ...p, temp_frozen: v }
+                  : { ...p, temp_at_delivery: v })}
+                defaultNegative
+                placeholder="np. 18.5"
+              />
               <p className="text-xs text-cyan-700 bg-cyan-50 border border-cyan-200 rounded-lg px-3 py-1.5 mt-2">
                 ❄ Mrożonki: wymagana temperatura ≤ −18°C
               </p>
               {/* frozen out-of-range warning */}
               {(() => {
                 const val = needsTwoTempFields ? form.temp_frozen : form.temp_at_delivery
-                return val && parseFloat(val) > -18 ? (
+                return val && !isFrozenTempOk(parseFloat(val)) ? (
                   <div className="flex items-center gap-2 mt-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
                     <AlertCircle size={13} />
                     Temperatura mrożonek wyższa niż −18°C — dostawa wymaga uwagi

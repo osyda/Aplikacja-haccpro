@@ -1,21 +1,24 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Plus, Thermometer, Search, FileText, X,
   Calendar, CheckCircle2, XCircle, AlertTriangle,
   Fish, Snowflake, Leaf, Package, GlassWater, Beef,
   Milk, Wheat, Sandwich, UtensilsCrossed, Bird, Truck,
-  ExternalLink, Beer,
+  ExternalLink, Beer, Pencil,
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { EmptyState } from '@/components/ui/empty-state'
+import { CHILLED_TEMP_MAX, isChilledTempOk, isFrozenTempOk } from '@/lib/delivery-temp'
+import { EditDeliveryModal } from './edit-delivery-modal'
 
 interface Supplier { alias: string; full_name: string | null; nip: string | null }
 
-interface DeliveryLog {
+export interface DeliveryLog {
   id: string
   product: string
   supplier: string
@@ -61,11 +64,7 @@ const CAT_META: Record<string, { label: string; color: string; bg: string; Icon:
   inne:     { label: 'Inne',            color: 'text-gray-600',   bg: 'bg-gray-100',  Icon: FileText },
 }
 
-const TEMP_MAX: Record<string, number> = {
-  mieso: 7, drob: 4, ryby: 4, wedliny: 7, nabiał: 8, gotowe: 4,
-}
-
-function getCats(log: DeliveryLog): string[] {
+export function getCats(log: DeliveryLog): string[] {
   if (Array.isArray(log.categories) && log.categories.length > 0) return log.categories
   if (log.category) return [log.category]
   return []
@@ -79,23 +78,22 @@ interface TempReading { label: string; value: number; warn: boolean }
 function getTempReadings(log: DeliveryLog): TempReading[] {
   const cats = getCats(log)
   const frozenSelected = cats.includes('mrozonki')
-  const chilledCats = cats.filter(c => c !== 'mrozonki' && TEMP_MAX[c] !== undefined)
+  const chilledCats = cats.filter(c => c !== 'mrozonki' && CHILLED_TEMP_MAX[c] !== undefined)
   const mixed = frozenSelected && chilledCats.length > 0
   const readings: TempReading[] = []
 
   if (chilledCats.length > 0 && log.temp_at_delivery !== null) {
-    const maxAllowed = Math.max(...chilledCats.map(c => TEMP_MAX[c]))
     readings.push({
       label: mixed ? 'Temp. (chłodzone)' : 'Temperatura',
       value: log.temp_at_delivery,
-      warn: log.temp_at_delivery < 0 || log.temp_at_delivery > maxAllowed,
+      warn: !isChilledTempOk(log.temp_at_delivery, chilledCats),
     })
   }
 
   if (frozenSelected) {
     const value = mixed ? (log.temp_frozen ?? null) : log.temp_at_delivery
     if (value !== null) {
-      readings.push({ label: mixed ? 'Temp. (mrożonki)' : 'Temperatura', value, warn: value > -18 })
+      readings.push({ label: mixed ? 'Temp. (mrożonki)' : 'Temperatura', value, warn: !isFrozenTempOk(value) })
     }
   }
 
@@ -200,7 +198,7 @@ function StatusBadge({ log }: { log: DeliveryLog }) {
   )
 }
 
-function DetailModal({ log, supp, author, onClose }: { log: DeliveryLog; supp: Supplier | undefined; author?: string; onClose: () => void }) {
+function DetailModal({ log, supp, author, onClose, onEdit }: { log: DeliveryLog; supp: Supplier | undefined; author?: string; onClose: () => void; onEdit: () => void }) {
   const cats = getCats(log)
 
   return (
@@ -220,6 +218,9 @@ function DetailModal({ log, supp, author, onClose }: { log: DeliveryLog; supp: S
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <StatusBadge log={log} />
+            <button onClick={onEdit} title="Edytuj wpis" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-brand-navy transition-colors">
+              <Pencil size={16} />
+            </button>
             <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors">
               <X size={18} />
             </button>
@@ -420,9 +421,11 @@ function DeliveryCard({ log, supp, author, onClick }: { log: DeliveryLog; supp: 
 }
 
 export function DeliveryList({ logs, suppMap, usersMap }: Props) {
+  const router = useRouter()
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<FilterType>('all')
   const [detail, setDetail] = useState<DeliveryLog | null>(null)
+  const [editing, setEditing] = useState<DeliveryLog | null>(null)
 
   const todayLogs = useMemo(() => logs.filter(l => isToday(l.received_at)), [logs])
   const todayOk = useMemo(() => todayLogs.filter(l => l.quality_ok && !isTempWarn(l)).length, [todayLogs])
@@ -549,6 +552,16 @@ export function DeliveryList({ logs, suppMap, usersMap }: Props) {
           supp={suppMap[detail.supplier]}
           author={detail.recorded_by ? usersMap[detail.recorded_by] : undefined}
           onClose={() => setDetail(null)}
+          onEdit={() => { setEditing(detail); setDetail(null) }}
+        />
+      )}
+
+      {/* Edit modal */}
+      {editing && (
+        <EditDeliveryModal
+          log={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); router.refresh() }}
         />
       )}
     </>
