@@ -5,7 +5,7 @@ import {
   GraduationCap, Stethoscope, FileText, Apple, Bug, Sun, Moon, FlaskConical, Trash2,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { getTodayStart, getTodayEnd, getTodaySplit, getTomorrowDateStr, isTemperatureOk, cn } from '@/lib/utils'
+import { getTodayStart, getTodayEnd, getTodaySplit, getTodayDateStr, getTomorrowDateStr, isTemperatureOk, cn } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/page-header'
 import { Badge } from '@/components/ui/badge'
 import { AlertBox } from '@/components/ui/alert-box'
@@ -93,9 +93,9 @@ async function getDashboardData(locationId: string) {
   const completedTaskIds = new Set(
     (completedTaskIdsRes.data ?? []).map((r: { cleaning_task_id: string }) => r.cleaning_task_id)
   )
-  const now = new Date()
-  const todayDow = now.getDay() === 0 ? 6 : now.getDay() - 1
-  const todayDom = now.getDate()
+  const todayUTC = new Date(`${getTodayDateStr()}T00:00:00Z`)
+  const todayDow = todayUTC.getUTCDay() === 0 ? 6 : todayUTC.getUTCDay() - 1
+  const todayDom = todayUTC.getUTCDate()
   let pendingCleaningTasks = 0
   for (const t of (cleaningTasksRes.data ?? [])) {
     if (completedTaskIds.has(t.id)) continue
@@ -185,8 +185,8 @@ export default async function DashboardPage() {
     },
   ]
 
-  const today = new Date()
-  const dateStrRaw = today.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+  const today = new Date(`${getTodayDateStr()}T00:00:00Z`)
+  const dateStrRaw = today.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
   const dateStr = dateStrRaw.charAt(0).toUpperCase() + dateStrRaw.slice(1)
 
   const todoCount = (() => {
