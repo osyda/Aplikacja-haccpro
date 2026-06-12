@@ -8,7 +8,7 @@ import { ChevronLeft, Paperclip, X, Thermometer, Building2, Plus, CheckCircle2, 
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { isOwnerRole } from '@/lib/permissions'
-import { SignedTempInput } from '@/components/ui/signed-temp-input'
+import { TempStepInput } from '@/components/ui/temp-step-input'
 import { chilledMaxAllowed, isChilledTempOk, isFrozenTempOk } from '@/lib/delivery-temp'
 import type { ScanResult } from '@/app/api/scan-invoice/route'
 
@@ -124,6 +124,26 @@ export default function NowaDostawaPage() {
     }
     load()
   }, [])
+
+  // Pre-fill temperature fields with a sensible starting value once the
+  // relevant categories are known — for frozen this gives the field a
+  // leading "-" from the start, so the user only has to adjust digits.
+  useEffect(() => {
+    if (step !== 3) return
+    setForm(p => {
+      const next = { ...p }
+      let changed = false
+      if (needsTwoTempFields) {
+        if (!next.temp_at_delivery) { next.temp_at_delivery = '4'; changed = true }
+        if (!next.temp_frozen) { next.temp_frozen = '-18'; changed = true }
+      } else if (hasFrozen) {
+        if (!next.temp_at_delivery) { next.temp_at_delivery = '-18'; changed = true }
+      } else if (hasChilled) {
+        if (!next.temp_at_delivery) { next.temp_at_delivery = '4'; changed = true }
+      }
+      return changed ? next : p
+    })
+  }, [step, needsTwoTempFields, hasFrozen, hasChilled])
 
   async function getCtx() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -540,9 +560,10 @@ export default function NowaDostawaPage() {
                   : 'Temperatura przy odbiorze (°C)'}
                 {' '}<span className="text-red-500">*</span>
               </label>
-              <input type="number" step="0.1" inputMode="decimal" className="input font-mono text-xl text-center py-3 h-14"
-                placeholder="np. 4.2"
-                value={form.temp_at_delivery} onChange={e => setForm(p => ({ ...p, temp_at_delivery: e.target.value }))} />
+              <TempStepInput
+                value={form.temp_at_delivery}
+                onChange={v => setForm(p => ({ ...p, temp_at_delivery: v }))}
+              />
               <p className="text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded-lg px-3 py-1.5 mt-2">
                 🌡 Produkty chłodzone: wymagana temperatura 0–{chilledMaxAllowed(chilledCats.map(c => c.id))}°C
               </p>
@@ -562,13 +583,11 @@ export default function NowaDostawaPage() {
                 {needsTwoTempFields ? 'Temperatura — mrożonki' : 'Temperatura przy odbiorze (°C)'}
                 {' '}<span className="text-red-500">*</span>
               </label>
-              <SignedTempInput
+              <TempStepInput
                 value={needsTwoTempFields ? form.temp_frozen : form.temp_at_delivery}
                 onChange={v => setForm(p => needsTwoTempFields
                   ? { ...p, temp_frozen: v }
                   : { ...p, temp_at_delivery: v })}
-                defaultNegative
-                placeholder="np. 18.5"
               />
               <p className="text-xs text-cyan-700 bg-cyan-50 border border-cyan-200 rounded-lg px-3 py-1.5 mt-2">
                 ❄ Mrożonki: wymagana temperatura ≤ −18°C

@@ -46,6 +46,7 @@ interface Props {
   logs: DeliveryLog[]
   suppMap: Record<string, Supplier>
   usersMap: Record<string, string>
+  isOwner: boolean
 }
 
 const CAT_META: Record<string, { label: string; color: string; bg: string; Icon: React.ElementType }> = {
@@ -420,7 +421,7 @@ function DeliveryCard({ log, supp, author, onClick }: { log: DeliveryLog; supp: 
   )
 }
 
-export function DeliveryList({ logs, suppMap, usersMap }: Props) {
+export function DeliveryList({ logs, suppMap, usersMap, isOwner }: Props) {
   const router = useRouter()
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<FilterType>('all')
@@ -560,8 +561,10 @@ export function DeliveryList({ logs, suppMap, usersMap }: Props) {
       {editing && (
         <EditDeliveryModal
           log={editing}
+          isOwner={isOwner}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); router.refresh() }}
+          onDeleted={() => { setEditing(null); router.refresh() }}
         />
       )}
     </>

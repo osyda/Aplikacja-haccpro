@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
+import { isOwnerRole } from '@/lib/permissions'
 import { DeliveryList } from './delivery-list'
 
 export default async function DostawyPage() {
@@ -10,11 +11,12 @@ export default async function DostawyPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('location_id')
+    .select('location_id, role')
     .eq('id', user!.id)
     .single()
 
   const locationId = profile?.location_id ?? ''
+  const isOwner = isOwnerRole(profile?.role)
 
   const [logsRes, suppliersRes] = await Promise.all([
     supabase
@@ -51,7 +53,7 @@ export default async function DostawyPage() {
         }
       />
 
-      <DeliveryList logs={logs} suppMap={suppMap} usersMap={usersMap} />
+      <DeliveryList logs={logs} suppMap={suppMap} usersMap={usersMap} isOwner={isOwner} />
     </div>
   )
 }

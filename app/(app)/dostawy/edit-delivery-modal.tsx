@@ -1,19 +1,21 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
-import { Dialog } from '@/components/ui/dialog'
-import { SignedTempInput } from '@/components/ui/signed-temp-input'
+import { Dialog, ConfirmDialog } from '@/components/ui/dialog'
+import { TempStepInput } from '@/components/ui/temp-step-input'
 import { CHILLED_TEMP_MAX, FROZEN_TEMP_MAX, chilledMaxAllowed, isChilledTempOk, isFrozenTempOk } from '@/lib/delivery-temp'
 import { getCats, type DeliveryLog } from './delivery-list'
 
 interface Props {
   log: DeliveryLog
+  isOwner: boolean
   onClose: () => void
   onSaved: () => void
+  onDeleted: () => void
 }
 
 function parseTempInput(s: string): number | null {
@@ -22,7 +24,7 @@ function parseTempInput(s: string): number | null {
   return isNaN(n) ? null : n
 }
 
-export function EditDeliveryModal({ log, onClose, onSaved }: Props) {
+export function EditDeliveryModal({ log, isOwner, onClose, onSaved, onDeleted }: Props) {
   const cats = getCats(log)
   const frozenSelected = cats.includes('mrozonki')
   const chilledCats = cats.filter(c => c !== 'mrozonki' && CHILLED_TEMP_MAX[c] !== undefined)
@@ -40,6 +42,8 @@ export function EditDeliveryModal({ log, onClose, onSaved }: Props) {
   const [notes, setNotes] = useState(log.notes ?? '')
   const [reason, setReason] = useState('')
   const [saving, setSaving] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const supabase = createClient()
 
   const tempAtDeliveryVal = parseTempInput(tempAtDelivery)
@@ -91,6 +95,15 @@ export function EditDeliveryModal({ log, onClose, onSaved }: Props) {
     onSaved()
   }
 
+  async function handleDelete() {
+    setDeleting(true)
+    const { error } = await supabase.from('delivery_logs').delete().eq('id', log.id)
+    setDeleting(false)
+    if (error) { toast.error('Błąd usuwania: ' + error.message); return }
+    toast.success('Dostawa usunięta')
+    onDeleted()
+  }
+
   return (
     <Dialog open onClose={onClose} title="Edytuj dostawę" description={log.product} size="md">
       <div className="space-y-4">
@@ -110,15 +123,7 @@ export function EditDeliveryModal({ log, onClose, onSaved }: Props) {
             <label className="label">
               {mixed ? 'Temperatura — produkty chłodzone' : 'Temperatura przy odbiorze (°C)'}
             </label>
-            <input
-              type="number"
-              step="0.1"
-              inputMode="decimal"
-              className="input font-mono text-xl text-center py-3 h-14"
-              placeholder="np. 4.2"
-              value={tempAtDelivery}
-              onChange={e => setTempAtDelivery(e.target.value)}
-            />
+            <TempStepInput value={tempAtDelivery} onChange={setTempAtDelivery} />
             {tempAtDeliveryVal !== null && !chilledOk && (
               <div className="flex items-center gap-2 mt-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
                 <AlertCircle size={13} />
@@ -133,11 +138,9 @@ export function EditDeliveryModal({ log, onClose, onSaved }: Props) {
             <label className="label">
               {mixed ? 'Temperatura — mrożonki' : 'Temperatura przy odbiorze (°C)'}
             </label>
-            <SignedTempInput
+            <TempStepInput
               value={mixed ? tempFrozen : tempAtDelivery}
               onChange={mixed ? setTempFrozen : setTempAtDelivery}
-              defaultNegative
-              placeholder="np. 18.5"
             />
             {frozenFieldVal !== null && !frozenOk && (
               <div className="flex items-center gap-2 mt-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
@@ -202,7 +205,29 @@ export function EditDeliveryModal({ log, onClose, onSaved }: Props) {
             Anuluj
           </button>
         </div>
+
+        {isOwner && (
+          <button
+            type="button"
+            onClick={() => setConfirmDelete(true)}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium text-red-600 border-2 border-red-200 hover:bg-red-50 min-h-[48px]"
+          >
+            <Trash2 size={16} />
+            Usuń dostawę
+          </button>
+        )}
       </div>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={handleDelete}
+        title="Usuń dostawę"
+        description="Czy na pewno chcesz całkowicie usunąć ten wpis dostawy? Tej operacji nie można odwrócić."
+        confirmLabel="Usuń"
+        loading={deleting}
+        danger
+      />
     </Dialog>
   )
 }
