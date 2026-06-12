@@ -115,6 +115,7 @@ export interface AuditLog {
   new_data: Record<string, unknown> | null
   changed_by: string | null
   changed_at: string
+  location_id: string | null
 }
 
 type TableDef<R, I = Partial<R>, U = Partial<R>> = {

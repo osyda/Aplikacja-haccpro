@@ -27,7 +27,19 @@ const ACTION_LABEL: Record<AuditLog['action'], string> = {
 export default async function HistoriaPage({ searchParams }: PageProps) {
   const supabase = createClient()
 
-  let query = supabase.from('audit_log').select('*').order('changed_at', { ascending: false }).limit(100)
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('location_id')
+    .eq('id', user!.id)
+    .single()
+
+  let query = supabase
+    .from('audit_log')
+    .select('*')
+    .eq('location_id', profile?.location_id ?? '')
+    .order('changed_at', { ascending: false })
+    .limit(100)
   if (searchParams.action && ['INSERT', 'UPDATE', 'DELETE'].includes(searchParams.action)) {
     query = query.eq('action', searchParams.action)
   }
