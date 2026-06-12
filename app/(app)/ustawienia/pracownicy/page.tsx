@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { ChevronLeft, Users, Crown, User, ChevronDown, ChevronUp, Check, Save, Loader2, Trash2 } from 'lucide-react'
+import { ChevronLeft, Users, Crown, User, UserCog, ChevronDown, ChevronUp, Check, Save, Loader2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -144,10 +144,11 @@ function EmployeeEditor({
       {/* Role */}
       <div>
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Rola</p>
-        <div className="flex gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {[
-            { value: 'owner', label: 'Właściciel', icon: Crown, active: 'border-yellow-400 bg-yellow-50 text-yellow-800' },
-            { value: 'staff',  label: 'Pracownik',  icon: User,  active: 'border-green-400 bg-green-50 text-green-800' },
+            { value: 'owner',   label: 'Właściciel', icon: Crown,   active: 'border-yellow-400 bg-yellow-50 text-yellow-800' },
+            { value: 'manager', label: 'Kierownik',  icon: UserCog, active: 'border-brand-navy bg-brand-navy/10 text-brand-navy' },
+            { value: 'staff',   label: 'Pracownik',  icon: User,    active: 'border-green-400 bg-green-50 text-green-800' },
           ].map(({ value, label, icon: Icon, active }) => (
             <button
               key={value}
@@ -158,14 +159,16 @@ function EmployeeEditor({
                 setPerms(isOwnerRole(value) ? OWNER_PERMISSIONS : resolvePermissions('staff', member.permissions))
               }}
               className={cn(
-                'flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-sm font-semibold transition-all',
+                'flex flex-col items-center gap-1 px-2 py-2.5 rounded-xl border-2 text-xs font-semibold transition-all',
                 role === value ? active : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300',
                 isCurrentUser && value !== role && 'opacity-30 cursor-not-allowed'
               )}
             >
-              <Icon size={14} />
-              {label}
-              {role === value && <Check size={13} className="ml-auto" />}
+              <Icon size={16} />
+              <span className="flex items-center gap-1">
+                {label}
+                {role === value && <Check size={12} />}
+              </span>
             </button>
           ))}
         </div>
@@ -257,6 +260,7 @@ function EmployeeEditor({
 function InviteForm({ locations }: { locations: { id: string; name: string }[] }) {
   const [email, setEmail] = useState('')
   const [locationId, setLocationId] = useState<string>(locations[0]?.id ?? '')
+  const [role, setRole] = useState<'staff' | 'manager'>('staff')
   const [sending, setSending] = useState(false)
 
   async function handleInvite(e: React.FormEvent) {
@@ -266,7 +270,7 @@ function InviteForm({ locations }: { locations: { id: string; name: string }[] }
     const res = await fetch('/api/invite-staff', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: email.trim(), location_id: locationId || null }),
+      body: JSON.stringify({ email: email.trim(), location_id: locationId || null, role }),
     })
     setSending(false)
     if (!res.ok) {
@@ -311,6 +315,17 @@ function InviteForm({ locations }: { locations: { id: string; name: string }[] }
             </select>
           </div>
         )}
+        <div>
+          <label className="label">Rola</label>
+          <select
+            className="input w-full text-sm"
+            value={role}
+            onChange={e => setRole(e.target.value as 'staff' | 'manager')}
+          >
+            <option value="staff">Pracownik</option>
+            <option value="manager">Kierownik</option>
+          </select>
+        </div>
         <button
           type="submit"
           disabled={sending}
@@ -388,7 +403,7 @@ export default function PracownicyPage() {
               <div key={member.id} className="py-3">
                 <div className="flex items-center gap-3">
                   <div className={cn('p-2 rounded-lg shrink-0', config.cls)}>
-                    {isOwnerRole(role) ? <Crown size={15} /> : <User size={15} />}
+                    {role === 'owner' ? <Crown size={15} /> : role === 'manager' ? <UserCog size={15} /> : <User size={15} />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm text-gray-900 truncate">{member.full_name || '(bez nazwy)'}</p>

@@ -279,8 +279,15 @@ export default function BadaniaWodyPage() {
             </div>
             <div>
               <label className="label">Wynik <span className="text-gray-400 font-normal">(opcjonalne)</span></label>
-              <input className="input" placeholder="np. Woda przydatna do spożycia"
+              <input className="input" placeholder="np. Woda przydatna do spożycia" list="water-test-results"
                 value={form.result} onChange={e => setForm(p => ({ ...p, result: e.target.value }))} />
+              <datalist id="water-test-results">
+                <option value="Woda przydatna do spożycia" />
+                <option value="Woda spełnia wymagania jakościowe" />
+                <option value="Brak zanieczyszczeń mikrobiologicznych" />
+                <option value="Niezgodna z normą — wymaga działań naprawczych" />
+                <option value="Wymaga powtórzenia badania" />
+              </datalist>
             </div>
           </div>
 

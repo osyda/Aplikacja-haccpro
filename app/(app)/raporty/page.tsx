@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { FileText, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
+import { formatDate } from '@/lib/utils'
 
 const MODULES = [
   { id: 'temperatury', label: 'Rejestr temperatur' },
@@ -19,6 +20,17 @@ const MONTHS = [
   'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień',
 ]
 
+const MODULE_LABELS: Record<string, string> = Object.fromEntries(MODULES.map((m) => [m.id, m.label]))
+
+interface ReportHistoryItem {
+  id: string
+  modules: string[]
+  period_month: number
+  period_year: number
+  generated_at: string
+  url: string
+}
+
 export default function RaportyPage() {
   const today = new Date()
   const [selectedModules, setSelectedModules] = useState<string[]>(['temperatury', 'dostawy', 'mycie'])
@@ -26,6 +38,25 @@ export default function RaportyPage() {
   const [year, setYear] = useState(today.getFullYear())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [history, setHistory] = useState<ReportHistoryItem[]>([])
+  const [historyLoading, setHistoryLoading] = useState(true)
+
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true)
+    try {
+      const res = await fetch('/api/export/pdf/history')
+      if (res.ok) {
+        const json = await res.json() as { reports: ReportHistoryItem[] }
+        setHistory(json.reports)
+      }
+    } finally {
+      setHistoryLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadHistory()
+  }, [loadHistory])
 
   function toggleModule(id: string) {
     setSelectedModules((prev) =>
@@ -58,6 +89,7 @@ export default function RaportyPage() {
         a.download = `HACCP_${MONTHS[month]}_${year}.pdf`
         a.click()
         URL.revokeObjectURL(url)
+        loadHistory()
       } else {
         const text = await res.text()
         setError(`Błąd serwera (${res.status}): ${text.slice(0, 300)}`)
@@ -68,7 +100,7 @@ export default function RaportyPage() {
     setLoading(false)
   }
 
-  const years = [today.getFullYear() - 1, today.getFullYear()]
+  const years = Array.from({ length: 5 }, (_, i) => today.getFullYear() - i)
 
   return (
     <div className="max-w-lg space-y-6">
@@ -141,12 +173,38 @@ export default function RaportyPage() {
         </p>
       </div>
 
-      <div className="card bg-gray-50 border-dashed">
+      <div className="card">
         <div className="flex items-center gap-2 mb-2">
           <FileText size={16} className="text-gray-400" />
           <p className="text-sm font-medium text-gray-600">Poprzednie raporty</p>
         </div>
-        <p className="text-xs text-gray-400">Historia wygenerowanych raportów — dostępna wkrótce.</p>
+        {historyLoading ? (
+          <p className="text-xs text-gray-400">Wczytywanie…</p>
+        ) : history.length > 0 ? (
+          <div className="divide-y divide-gray-50">
+            {history.map((r) => (
+              <a
+                key={r.id}
+                href={r.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-between gap-3 py-2.5 group"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-800 truncate">
+                    {MONTHS[r.period_month - 1]} {r.period_year}
+                  </p>
+                  <p className="text-xs text-gray-400 truncate">
+                    {r.modules.map((m) => MODULE_LABELS[m] ?? m).join(', ')} · {formatDate(r.generated_at)}
+                  </p>
+                </div>
+                <Download size={15} className="text-gray-400 group-hover:text-brand-green shrink-0" />
+              </a>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400">Tu pojawi się historia wygenerowanych raportów.</p>
+        )}
       </div>
     </div>
   )

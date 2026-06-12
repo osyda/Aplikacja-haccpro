@@ -113,6 +113,25 @@ export async function GET(request: NextRequest) {
 
     const buffer = Buffer.from(await renderToBuffer(element as any))
 
+    if (locationId) {
+      const filePath = `${locationId}/${year}-${String(month).padStart(2, '0')}-${Date.now()}.pdf`
+      const { error: uploadError } = await supabase.storage.from('reports').upload(filePath, buffer, {
+        contentType: 'application/pdf',
+      })
+      if (!uploadError) {
+        await supabase.from('generated_reports').insert({
+          location_id: locationId,
+          modules: moduleIds,
+          period_month: month,
+          period_year: year,
+          file_path: filePath,
+          generated_by: user.id,
+        })
+      } else {
+        console.error('[PDF] report storage error:', uploadError.message)
+      }
+    }
+
     return new NextResponse(buffer, {
       headers: {
         'Content-Type': 'application/pdf',

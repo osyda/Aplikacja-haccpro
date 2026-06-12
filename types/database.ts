@@ -118,6 +118,17 @@ export interface AuditLog {
   location_id: string | null
 }
 
+export interface GeneratedReport {
+  id: string
+  location_id: string
+  modules: string[]
+  period_month: number
+  period_year: number
+  file_path: string
+  generated_by: string | null
+  generated_at: string
+}
+
 type TableDef<R, I = Partial<R>, U = Partial<R>> = {
   Row: R
   Insert: I
