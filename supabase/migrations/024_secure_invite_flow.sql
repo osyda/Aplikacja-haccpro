@@ -19,6 +19,11 @@
 -- ignored entirely.
 -- ============================================================
 
+-- Idempotent: a previous partial run of this migration may have already
+-- created the table (this feature is brand new, so it can hold no real
+-- invite data yet — safe to drop and recreate along with its indexes/policies).
+drop table if exists invites cascade;
+
 create table invites (
   id          uuid primary key default uuid_generate_v4(),
   token       uuid not null default uuid_generate_v4(),
