@@ -17,23 +17,33 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
   const admin = createAdminClient()
   const { id } = params
 
-  const [profilesRes, locationsRes] = await Promise.all([
+  const [orgRes, profilesRes, locationsRes] = await Promise.all([
+    admin
+      .from('organizations')
+      .select('id, name, plan, is_active, trial_ends_at, created_at, nip, address_street, address_building_no, address_unit_no, address_postal_code, address_city')
+      .eq('id', id)
+      .single(),
     admin
       .from('profiles')
-      .select('id, full_name, email, role, location_id, locations(name)')
+      .select('id, full_name, email, phone, role, location_id, created_at, locations(name)')
       .eq('org_id', id)
       .order('role'),
     admin
       .from('locations')
-      .select('id, name, created_at')
+      .select('id, name, type, address, city, postal_code, oil_company_name, oil_company_phone, created_at')
       .eq('org_id', id)
       .order('name'),
   ])
 
+  if (orgRes.error) return NextResponse.json({ error: orgRes.error.message }, { status: 500 })
   if (profilesRes.error) return NextResponse.json({ error: profilesRes.error.message }, { status: 500 })
   if (locationsRes.error) return NextResponse.json({ error: locationsRes.error.message }, { status: 500 })
 
-  return NextResponse.json({ profiles: profilesRes.data ?? [], locations: locationsRes.data ?? [] })
+  return NextResponse.json({
+    organization: orgRes.data,
+    profiles: profilesRes.data ?? [],
+    locations: locationsRes.data ?? [],
+  })
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {

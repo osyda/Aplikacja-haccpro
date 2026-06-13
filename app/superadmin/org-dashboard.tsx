@@ -30,15 +30,34 @@ interface OrgProfile {
   id: string
   full_name: string | null
   email: string | null
+  phone: string | null
   role: string | null
   location_id: string | null
+  created_at: string
   locations: { name: string } | null
 }
 
 interface OrgLocation {
   id: string
   name: string
+  type: string | null
+  address: string | null
+  city: string | null
+  postal_code: string | null
+  oil_company_name: string | null
+  oil_company_phone: string | null
   created_at: string
+}
+
+interface OrgDetails {
+  id: string
+  name: string
+  nip: string | null
+  address_street: string | null
+  address_building_no: string | null
+  address_unit_no: string | null
+  address_postal_code: string | null
+  address_city: string | null
 }
 
 const PLANS = ['trial', 'start', 'pro', 'multi', 'enterprise'] as const
@@ -90,6 +109,29 @@ function daysLeft(d: string | null): number | null {
   return Math.ceil((new Date(d).getTime() - Date.now()) / 86_400_000)
 }
 
+function fmtOrgAddress(d: OrgDetails | null): string {
+  if (!d) return '—'
+  const street = [d.address_street, d.address_building_no].filter(Boolean).join(' ').trim()
+  const withUnit = d.address_unit_no ? `${street}/${d.address_unit_no}` : street
+  const cityLine = [d.address_postal_code, d.address_city].filter(Boolean).join(' ').trim()
+  const full = [withUnit, cityLine].filter(Boolean).join(', ')
+  return full || '—'
+}
+
+function fmtLocAddress(loc: OrgLocation): string {
+  const cityLine = [loc.postal_code, loc.city].filter(Boolean).join(' ').trim()
+  return [loc.address, cityLine].filter(Boolean).join(', ')
+}
+
+function DetailRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <span className="text-xs text-gray-400 shrink-0">{label}</span>
+      <span className={cn('text-sm text-gray-800 text-right', mono && 'font-mono')}>{value}</span>
+    </div>
+  )
+}
+
 function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col gap-1 shadow-sm">
@@ -137,6 +179,7 @@ function PlanSelect({ orgId, current, onChanged }: { orgId: string; current: str
 }
 
 function OrgDetailModal({ org, onClose, onDeleted }: { org: OrgRow; onClose: () => void; onDeleted: (id: string) => void }) {
+  const [details, setDetails] = useState<OrgDetails | null>(null)
   const [profiles, setProfiles] = useState<OrgProfile[] | null>(null)
   const [locations, setLocations] = useState<OrgLocation[] | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(true)
@@ -150,6 +193,7 @@ function OrgDetailModal({ org, onClose, onDeleted }: { org: OrgRow; onClose: () 
       .then(r => r.json())
       .then(data => {
         if (data.error) { setError(data.error); return }
+        setDetails(data.organization ?? null)
         setProfiles(data.profiles)
         setLocations(data.locations)
       })
@@ -282,18 +326,48 @@ function OrgDetailModal({ org, onClose, onDeleted }: { org: OrgRow; onClose: () 
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-600">{error}</div>
           ) : (
             <>
+              {/* Company details */}
+              <div>
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <Building2 size={12} /> Dane firmy
+                </h3>
+                <div className="bg-gray-50 rounded-xl p-3 space-y-2 text-sm">
+                  <DetailRow label="Nazwa" value={details?.name || org.name} />
+                  <DetailRow label="NIP" value={details?.nip || '—'} mono />
+                  <DetailRow label="Adres siedziby" value={fmtOrgAddress(details)} />
+                </div>
+              </div>
+
               {/* Locations */}
               <div>
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <MapPin size={12} /> Lokale ({locations?.length ?? 0})
                 </h3>
                 {locations && locations.length > 0 ? (
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     {locations.map(loc => (
-                      <div key={loc.id} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2.5">
-                        <MapPin size={13} className="text-[#22C55E] shrink-0" />
-                        <p className="text-sm font-medium text-gray-800">{loc.name}</p>
-                        <p className="text-xs text-gray-400 ml-auto">{fmtDate(loc.created_at)}</p>
+                      <div key={loc.id} className="bg-gray-50 rounded-xl px-3 py-2.5 space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <MapPin size={13} className="text-[#22C55E] shrink-0" />
+                          <p className="text-sm font-semibold text-gray-800">{loc.name}</p>
+                          {loc.type && (
+                            <span className="text-xs text-gray-400">· {loc.type}</span>
+                          )}
+                          <p className="text-xs text-gray-400 ml-auto">{fmtDate(loc.created_at)}</p>
+                        </div>
+                        <div className="pl-5 space-y-0.5">
+                          {fmtLocAddress(loc) ? (
+                            <p className="text-xs text-gray-500">{fmtLocAddress(loc)}</p>
+                          ) : (
+                            <p className="text-xs text-gray-400 italic">Brak adresu</p>
+                          )}
+                          {(loc.oil_company_name || loc.oil_company_phone) && (
+                            <p className="text-xs text-gray-400">
+                              Odbiór oleju: {loc.oil_company_name || '—'}
+                              {loc.oil_company_phone ? ` (${loc.oil_company_phone})` : ''}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -325,6 +399,11 @@ function OrgDetailModal({ org, onClose, onDeleted }: { org: OrgRow; onClose: () 
                             </span>
                           </div>
                           <p className="text-xs text-gray-400 truncate">{p.email}</p>
+                          {p.phone && (
+                            <a href={`tel:${p.phone.replace(/\s+/g, '')}`} className="text-xs text-blue-500 hover:underline flex items-center gap-1 mt-0.5">
+                              <Phone size={10} />{p.phone}
+                            </a>
+                          )}
                           {p.locations && (
                             <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
                               <MapPin size={10} />
