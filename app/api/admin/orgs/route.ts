@@ -40,6 +40,43 @@ export async function POST(request: NextRequest) {
   if (!nip || nip.replace(/\D/g, '').length !== 10) {
     return NextResponse.json({ error: 'NIP musi składać się z 10 cyfr' }, { status: 400 })
   }
+  const normalizedNip = nip.replace(/\D/g, '')
+
+  // Duplicate checks: this email or this NIP may already belong to an
+  // existing org (e.g. the client already self-registered on app.haccpro.pl).
+  // Creating a second org for them would fail later at inviteUserByEmail
+  // anyway (Supabase rejects an email that's already registered) — catch it
+  // early with a clear message pointing at the existing org instead.
+  const { data: existingProfile } = await admin
+    .from('profiles')
+    .select('org_id')
+    .ilike('email', ownerEmail.trim())
+    .limit(1)
+    .maybeSingle()
+
+  if (existingProfile) {
+    const { data: existingOrg } = await admin
+      .from('organizations')
+      .select('name')
+      .eq('id', existingProfile.org_id)
+      .single()
+    return NextResponse.json({
+      error: `Ten email ma już konto w systemie (firma: "${existingOrg?.name ?? '—'}"). Zamiast tworzyć nową organizację, edytuj istniejącą.`,
+    }, { status: 409 })
+  }
+
+  const { data: existingOrgByNip } = await admin
+    .from('organizations')
+    .select('name')
+    .eq('nip', normalizedNip)
+    .limit(1)
+    .maybeSingle()
+
+  if (existingOrgByNip) {
+    return NextResponse.json({
+      error: `Firma z tym NIP już istnieje w systemie (nazwa: "${existingOrgByNip.name}").`,
+    }, { status: 409 })
+  }
 
   const trialEndsAt = plan === 'trial'
     ? new Date(Date.now() + (trialDays ?? 14) * 86_400_000).toISOString()
@@ -50,7 +87,7 @@ export async function POST(request: NextRequest) {
     .from('organizations')
     .insert({
       name: orgName.trim(), plan, is_active: true, trial_ends_at: trialEndsAt,
-      nip: nip.replace(/\D/g, ''),
+      nip: normalizedNip,
       address_street: addressStreet?.trim() ?? '',
       address_building_no: addressBuildingNo?.trim() ?? '',
       address_unit_no: addressUnitNo?.trim() ?? '',
