@@ -83,20 +83,36 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: locErr?.message ?? 'Błąd tworzenia lokalizacji' }, { status: 500 })
   }
 
-  // 3. Invite owner — trigger joins them to the new org and location as owner
+  // 3. Create a server-issued invite token, then invite the owner — the
+  //    signup trigger joins them to the new org and location as owner.
+  const { data: invite, error: inviteRowErr } = await admin
+    .from('invites')
+    .insert({
+      org_id: org.id,
+      location_id: location.id,
+      role: 'owner',
+      email: ownerEmail.trim().toLowerCase(),
+    })
+    .select('token')
+    .single()
+
+  if (inviteRowErr || !invite) {
+    // Rollback org (cascade removes the location too) if invite row creation failed
+    await admin.from('organizations').delete().eq('id', org.id)
+    return NextResponse.json({ error: inviteRowErr?.message ?? 'Błąd tworzenia zaproszenia' }, { status: 500 })
+  }
+
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://app.haccpro.pl'
   const { error: inviteErr } = await admin.auth.admin.inviteUserByEmail(ownerEmail.trim(), {
     data: {
       full_name: ownerName?.trim() ?? '',
-      invited_org_id: org.id,
-      invited_role: 'owner',
-      invited_location_id: location.id,
+      invite_token: invite.token,
     },
     redirectTo: `${siteUrl}/auth/confirm`,
   })
 
   if (inviteErr) {
-    // Rollback org (cascade removes the location too) if invite failed
+    // Rollback org (cascade removes the location and invite too) if invite failed
     await admin.from('organizations').delete().eq('id', org.id)
     return NextResponse.json({ error: inviteErr.message }, { status: 400 })
   }
