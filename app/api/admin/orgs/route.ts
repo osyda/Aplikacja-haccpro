@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient()
 
   let body: {
-    orgName: string; ownerName: string; ownerEmail: string; plan: string; trialDays: number
+    orgName: string; ownerName: string; ownerPhone: string; ownerEmail: string; plan: string; trialDays: number
     nip: string
     addressStreet: string; addressBuildingNo: string; addressUnitNo: string; addressPostalCode: string; addressCity: string
     locationName: string; locationAddress: string; locationCity: string; locationPostalCode: string
@@ -29,13 +29,13 @@ export async function POST(request: NextRequest) {
   }
 
   const {
-    orgName, ownerName, ownerEmail, plan, trialDays,
+    orgName, ownerName, ownerPhone, ownerEmail, plan, trialDays,
     nip, addressStreet, addressBuildingNo, addressUnitNo, addressPostalCode, addressCity,
     locationName, locationAddress, locationCity, locationPostalCode,
   } = body
 
-  if (!orgName?.trim() || !ownerEmail?.trim()) {
-    return NextResponse.json({ error: 'Nazwa firmy i email są wymagane' }, { status: 400 })
+  if (!orgName?.trim() || !ownerName?.trim() || !ownerPhone?.trim() || !ownerEmail?.trim()) {
+    return NextResponse.json({ error: 'Nazwa firmy, imię i nazwisko, telefon i email są wymagane' }, { status: 400 })
   }
   if (!nip || nip.replace(/\D/g, '').length !== 10) {
     return NextResponse.json({ error: 'NIP musi składać się z 10 cyfr' }, { status: 400 })
@@ -142,7 +142,8 @@ export async function POST(request: NextRequest) {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://app.haccpro.pl'
   const { error: inviteErr } = await admin.auth.admin.inviteUserByEmail(ownerEmail.trim(), {
     data: {
-      full_name: ownerName?.trim() ?? '',
+      full_name: ownerName.trim(),
+      phone: ownerPhone.trim(),
       invite_token: invite.token,
     },
     redirectTo: `${siteUrl}/auth/confirm`,

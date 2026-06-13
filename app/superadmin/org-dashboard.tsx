@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import {
   Search, X, MessageSquare, ShieldOff, ShieldCheck,
   Building2, Users, MapPin, Loader2, Eye,
-  CheckCircle2, AlertTriangle, ChevronDown, Mail,
+  CheckCircle2, AlertTriangle, ChevronDown, Mail, Phone,
   UserCircle, Crown, Shield, User, Trash2, Plus,
   Send,
 } from 'lucide-react'
@@ -21,6 +21,7 @@ export interface OrgRow {
   created_at: string
   owner_name: string
   owner_email: string
+  owner_phone: string
   location_count: number
   user_count: number
 }
@@ -254,6 +255,11 @@ function OrgDetailModal({ org, onClose, onDeleted }: { org: OrgRow; onClose: () 
                 <a href={`mailto:${org.owner_email}`} className="text-xs text-blue-500 hover:underline flex items-center gap-1">
                   <Mail size={11} />{org.owner_email}
                 </a>
+                {org.owner_phone && (
+                  <a href={`tel:${org.owner_phone.replace(/\s+/g, '')}`} className="text-xs text-blue-500 hover:underline flex items-center gap-1 mt-0.5">
+                    <Phone size={11} />{org.owner_phone}
+                  </a>
+                )}
               </div>
             </div>
           </div>
@@ -392,7 +398,7 @@ function OrgDetailModal({ org, onClose, onDeleted }: { org: OrgRow; onClose: () 
 
 function AddClientModal({ onClose, onAdded }: { onClose: () => void; onAdded: (org: OrgRow) => void }) {
   const [form, setForm] = useState({
-    orgName: '', ownerName: '', ownerEmail: '', plan: 'trial', trialDays: '14',
+    orgName: '', ownerName: '', ownerPhone: '', ownerEmail: '', plan: 'trial', trialDays: '14',
     nip: '',
     addressStreet: '', addressBuildingNo: '', addressUnitNo: '', addressPostalCode: '', addressCity: '',
     locationName: '',
@@ -428,6 +434,7 @@ function AddClientModal({ onClose, onAdded }: { onClose: () => void; onAdded: (o
         body: JSON.stringify({
           orgName: form.orgName,
           ownerName: form.ownerName,
+          ownerPhone: form.ownerPhone.trim(),
           ownerEmail: form.ownerEmail,
           plan: form.plan,
           trialDays: parseInt(form.trialDays) || 14,
@@ -460,6 +467,7 @@ function AddClientModal({ onClose, onAdded }: { onClose: () => void; onAdded: (o
         created_at: new Date().toISOString(),
         owner_name: form.ownerName,
         owner_email: form.ownerEmail,
+        owner_phone: form.ownerPhone.trim(),
         location_count: 0,
         user_count: 1,
       })
@@ -607,12 +615,25 @@ function AddClientModal({ onClose, onAdded }: { onClose: () => void; onAdded: (o
             )}
 
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Imię i nazwisko</label>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Imię i nazwisko *</label>
               <input
                 type="text"
+                required
                 placeholder="np. Jan Kowalski"
                 value={form.ownerName}
                 onChange={e => set('ownerName', e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#22C55E]/20 focus:border-[#22C55E] transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Numer telefonu *</label>
+              <input
+                type="tel"
+                required
+                placeholder="np. 600 100 200"
+                value={form.ownerPhone}
+                onChange={e => set('ownerPhone', e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#22C55E]/20 focus:border-[#22C55E] transition-colors"
               />
             </div>

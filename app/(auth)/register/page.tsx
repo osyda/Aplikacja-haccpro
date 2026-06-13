@@ -11,7 +11,7 @@ import { buildAddressLine } from '@/lib/utils'
 import { Mail, UserPlus } from 'lucide-react'
 
 const initialForm = {
-  name: '', email: '', password: '', confirmPassword: '', orgName: '',
+  name: '', phone: '', email: '', password: '', confirmPassword: '', orgName: '',
   nip: '',
   addressStreet: '', addressBuildingNo: '', addressUnitNo: '', addressPostalCode: '', addressCity: '',
   locationName: '',
@@ -64,6 +64,7 @@ export default function RegisterPage() {
         emailRedirectTo: `${siteUrl}/auth/confirm?type=signup`,
         data: {
           full_name: form.name,
+          phone: form.phone.trim(),
           org_name: form.orgName,
           nip,
           address_street: form.addressStreet.trim(),
@@ -128,6 +129,11 @@ export default function RegisterPage() {
           id="name" name="name" type="text"
           label="Imię i nazwisko" placeholder="Jan Kowalski"
           value={form.name} onChange={handleChange} required
+        />
+        <Input
+          id="phone" name="phone" type="tel"
+          label="Numer telefonu" placeholder="np. 600 100 200"
+          value={form.phone} onChange={handleChange} required autoComplete="tel"
         />
 
         <FormSection title="Dane firmy">

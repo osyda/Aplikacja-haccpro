@@ -46,14 +46,14 @@ export default async function SuperadminPage() {
     const orgIds = (orgs ?? []).map((o: { id: string }) => o.id)
 
     const [ownersRes, locsRes, usersRes] = await Promise.all([
-      admin.from('profiles').select('org_id, full_name, email').in('org_id', orgIds).eq('role', 'owner'),
+      admin.from('profiles').select('org_id, full_name, email, phone').in('org_id', orgIds).eq('role', 'owner'),
       admin.from('locations').select('org_id').in('org_id', orgIds),
       admin.from('profiles').select('org_id').in('org_id', orgIds),
     ])
 
-    const ownerMap: Record<string, { name: string; email: string }> = {}
-    ;(ownersRes.data ?? []).forEach((p: { org_id: string; full_name: string; email: string }) => {
-      if (!ownerMap[p.org_id]) ownerMap[p.org_id] = { name: p.full_name ?? '', email: p.email ?? '' }
+    const ownerMap: Record<string, { name: string; email: string; phone: string }> = {}
+    ;(ownersRes.data ?? []).forEach((p: { org_id: string; full_name: string; email: string; phone: string | null }) => {
+      if (!ownerMap[p.org_id]) ownerMap[p.org_id] = { name: p.full_name ?? '', email: p.email ?? '', phone: p.phone ?? '' }
     })
 
     const locCounts: Record<string, number> = {}
@@ -79,6 +79,7 @@ export default async function SuperadminPage() {
       created_at: org.created_at,
       owner_name: ownerMap[org.id]?.name ?? '—',
       owner_email: ownerMap[org.id]?.email ?? '—',
+      owner_phone: ownerMap[org.id]?.phone ?? '',
       location_count: locCounts[org.id] ?? 0,
       user_count: userCounts[org.id] ?? 0,
     }))
