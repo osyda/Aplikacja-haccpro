@@ -9,6 +9,7 @@ import { ServiceWorkerRegister } from '@/components/pwa/sw-register'
 import { InstallPrompt } from '@/components/pwa/install-prompt'
 import { resolvePermissions } from '@/lib/permissions'
 import type { AppPermissions } from '@/lib/permissions'
+import { gatePermissionsByPlan } from '@/lib/plans'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient()
@@ -24,10 +25,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .eq('id', user.id)
     .single()
 
-  // Check if org is active; fails silently if column not yet added via migration
+  // Check org status + plan; fails silently if columns not yet added via migration
   const { data: orgStatus } = await supabase
     .from('organizations')
-    .select('is_active')
+    .select('is_active, plan, grandfathered, trial_ends_at')
     .eq('id', profile?.org_id ?? '')
     .maybeSingle()
   if (orgStatus && (orgStatus as { is_active?: boolean }).is_active === false) {
@@ -38,10 +39,22 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const locationName = (locRaw && !Array.isArray(locRaw) ? (locRaw as { name: string }) : null)?.name ?? 'Mój lokal'
   const currentLocationId = profile?.location_id ?? ''
 
-  const permissions = resolvePermissions(
+  const userPermissions = resolvePermissions(
     profile?.role,
     profile?.permissions as Partial<AppPermissions> | null,
   )
+  // Restrict modules to what the org's plan unlocks. Grandfathered orgs and
+  // orgs on the trial keep full access (see lib/plans.ts).
+  const planState = (orgStatus ?? {}) as {
+    plan?: string | null
+    grandfathered?: boolean | null
+    trial_ends_at?: string | null
+  }
+  const permissions = gatePermissionsByPlan(userPermissions, {
+    plan: planState.plan,
+    grandfathered: planState.grandfathered,
+    trial_ends_at: planState.trial_ends_at,
+  })
 
   const [{ data: allLocations }, { count: openNonconformities }, { data: recentAlerts }] = await Promise.all([
     supabase.from('locations').select('id, name').eq('org_id', profile?.org_id ?? '').order('name'),
