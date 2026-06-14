@@ -6,6 +6,7 @@ import { isOwnerRole } from '@/lib/permissions'
 import { PushNotificationsToggle } from '@/components/settings/push-notifications-toggle'
 import { ProfileForm } from '@/components/settings/profile-form'
 import { getPlanDefinition } from '@/lib/plans'
+import { signOrgToken, HACCPRO_PRICING_URL } from '@/lib/billing'
 
 export default async function UstawieniaPage() {
   const supabase = createClient()
@@ -37,6 +38,12 @@ export default async function UstawieniaPage() {
     : isTrial && trialDaysLeft !== null
       ? `Trial — pozostało ${trialDaysLeft} ${trialDaysLeft === 1 ? 'dzień' : 'dni'}`
       : planDef.tagline
+
+  // Signed token linking a haccpro.pl purchase back to this organization,
+  // independent of which e-mail is used at checkout (see /api/webhooks/woocommerce).
+  const orgId = profile?.org_id as string | undefined
+  const refToken = orgId ? signOrgToken(orgId) : null
+  const planUrl = refToken ? `${HACCPRO_PRICING_URL}?ref=${encodeURIComponent(refToken)}` : HACCPRO_PRICING_URL
 
   const ownerSections = [
     { href: '/ustawienia/lokale', icon: MapPin, label: 'Lokale', desc: location ? `${location.name} — ${location.city}` : 'Dodaj lokal' },
@@ -99,7 +106,7 @@ export default async function UstawieniaPage() {
         <div className="card bg-brand-navy text-white">
           <p className="text-sm font-semibold mb-1">Plan: {planDef.name}</p>
           <p className="text-xs text-white/60 mb-3">{planSubtitle}</p>
-          <a href="#" className="inline-flex items-center gap-1.5 bg-brand-green hover:bg-brand-green-dark text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+          <a href={planUrl} className="inline-flex items-center gap-1.5 bg-brand-green hover:bg-brand-green-dark text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
             {isTrial ? 'Wybierz plan' : 'Zmień plan'}
           </a>
         </div>

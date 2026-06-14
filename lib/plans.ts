@@ -165,6 +165,16 @@ export const PUBLIC_PLANS: PlanDefinition[] = (['start', 'pro', 'multi', 'enterp
   .map((id) => PLAN_DEFINITIONS[id])
   .filter((p) => p.isPublic)
 
+// Maps WooCommerce product SKUs to plan IDs — used by
+// /api/webhooks/woocommerce to translate a purchased product into a plan.
+// Keep these in sync with the product SKUs configured in WooCommerce.
+export const WOO_SKU_TO_PLAN: Partial<Record<string, PlanId>> = {
+  'haccpro-app-start': 'start',
+  'haccpro-app-pro': 'pro',
+  'haccpro-app-multi': 'multi',
+  'haccpro-app-enterprise': 'enterprise',
+}
+
 function normalizePlan(plan: string | null | undefined): PlanId {
   if (plan && plan in PLAN_DEFINITIONS) return plan as PlanId
   return 'trial'
