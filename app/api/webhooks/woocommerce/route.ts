@@ -70,7 +70,9 @@ export async function POST(request: NextRequest) {
 
   const email = String(payload.billing?.email ?? '').toLowerCase().trim()
   const wooCustomerId = payload.customer_id ? String(payload.customer_id) : null
-  const refValue = payload.meta_data?.find((m) => m.key === '_haccpro_ref')?.value
+  // NOTE: must NOT be prefixed with `_` — WooCommerce's REST API/webhook
+  // payload hides underscore-prefixed ("protected") order meta by default.
+  const refValue = payload.meta_data?.find((m) => m.key === 'haccpro_ref')?.value
   const refToken = typeof refValue === 'string' ? refValue : undefined
   const inactive = !!payload.status && INACTIVE_STATUSES.has(payload.status)
 
