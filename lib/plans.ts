@@ -125,7 +125,7 @@ export const PLAN_DEFINITIONS: Record<PlanId, PlanDefinition> = {
   multi: {
     id: 'multi',
     name: 'Multi',
-    priceMonthly: 149,
+    priceMonthly: 199,
     priceUnit: 'per_location',
     tagline: 'Dla sieci i franczyz — rozliczenie za każdy lokal',
     modules: ALL_MODULES,
